@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1B2A4A">
+<title>주보 메모</title>
+<link rel="manifest" href="manifest.json">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500;600&display=swap');
+
+:root {
+  --cream: #F5F0E8;
+  --cream-dark: #EDE6D8;
+  --navy: #1B2A4A;
+  --navy-light: #2E4170;
+  --gold: #B8973A;
+  --gold-light: #D4AF5A;
+  --text: #2C2C2C;
+  --muted: #7A7A7A;
+  --white: #fff;
+  --shadow: rgba(27,42,74,0.13);
+  --red: #C0392B;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  font-family: 'Noto Sans KR', sans-serif;
+  background: var(--cream);
+  color: var(--text);
+  max-width: 480px;
+  margin: 0 auto;
+  overflow-x: hidden;
+}
+
+/* ── Header ── */
+.app-header {
+  background: var(--navy);
+  color: var(--white);
+  padding: 48px 20px 14px;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 12px var(--shadow);
+}
+.header-row { display: flex; align-items: center; justify-content: space-between; }
+.app-title { font-family: 'Noto Serif KR', serif; font-size: 22px; font-weight: 700; }
+.app-title span { color: var(--gold-light); }
+.header-date { font-size: 11px; color: rgba(255,255,255,0.5); }
+.gold-line { height: 2px; background: linear-gradient(90deg,var(--gold),transparent); margin-top: 10px; border-radius: 1px; }
+
+/* ── Tab ── */
+.tab-nav {
+  display: flex;
+  background: var(--cream-dark);
+  border-bottom: 1px solid rgba(184,151,58,0.2);
+  position: sticky; top: 88px; z-index: 99;
+}
+.tab-btn {
+  flex: 1; padding: 12px 8px;
+  border: none; background: transparent;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px; font-weight: 500; color: var(--muted);
+  cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s;
+}
+.tab-btn.active { color: var(--navy); border-bottom-color: var(--gold); font-weight: 600; }
+
+/* ── Views ── */
+.view { display: none; padding: 20px 16px 100px; }
+.view.active { display: block; }
+
+/* ── Camera card ── */
+.cam-card {
+  background: var(--white);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px var(--shadow);
+  margin-bottom: 16px;
+}
+.cam-preview {
+  width: 100%; aspect-ratio: 3/4;
+  background: #111827;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.cam-preview video, .cam-preview img#previewImg {
+  width: 100%; height: 100%; object-fit: cover;
+  display: none;
+}
+.cam-preview img#previewImg { object-fit: contain; background: #111; }
+.cam-placeholder { text-align: center; color: rgba(255,255,255,.4); pointer-events: none; }
+.cam-placeholder .big-icon { font-size: 56px; margin-bottom: 10px; }
+.cam-placeholder p { font-size: 13px; line-height: 1.6; }
+
+/* corner brackets */
+.corner { position: absolute; width: 28px; height: 28px; border-color: var(--gold); border-style: solid; opacity: .7; }
+.c-tl { top:14px; left:14px; border-width: 2px 0 0 2px; }
+.c-tr { top:14px; right:14px; border-width: 2px 2px 0 0; }
+.c-bl { bottom:14px; left:14px; border-width: 0 0 2px 2px; }
+.c-br { bottom:14px; right:14px; border-width: 0 2px 2px 0; }
+
+/* shutter bar */
+.shutter-bar {
+  background: var(--navy);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.shutter-btn {
+  width: 68px; height: 68px; border-radius: 50%;
+  background: var(--gold);
+  border: 3px solid rgba(255,255,255,.3);
+  box-shadow: 0 0 0 5px rgba(184,151,58,.25);
+  font-size: 28px; cursor: pointer; transition: all .2s;
+  display: flex; align-items: center; justify-content: center;
+}
+.shutter-btn:active { transform: scale(.93); }
+
+/* ── Action buttons ── */
+.action-row { display: flex; gap: 12px; }
+.act-btn {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; gap: 8px;
+  padding: 18px 10px; border-radius: 14px;
+  border: none; cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px; font-weight: 600;
+  transition: all .2s; user-select: none;
+}
+.act-btn .icon { font-size: 28px; }
+.btn-cam { background: var(--navy); color: var(--white); }
+.btn-cam:active { background: var(--navy-light); }
+.btn-cam.on { background: #7f1d1d; }
+.btn-album {
+  background: var(--white); color: var(--navy);
+  border: 2px solid var(--gold);
+  box-shadow: 0 2px 10px var(--shadow);
+}
+.btn-album:active { background: var(--cream-dark); }
+
+/* 숨겨진 파일 인풋들 */
+#inputCamera { display: none; }
+#inputGallery { display: none; }
+
+/* ── List ── */
+.list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.list-title { font-family: 'Noto Serif KR', serif; font-size: 18px; font-weight: 700; color: var(--navy); }
+.badge { background: var(--navy); color: var(--gold-light); font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+
+.jubbo-card {
+  background: var(--white); border-radius: 14px;
+  box-shadow: 0 2px 12px var(--shadow);
+  margin-bottom: 14px; overflow: hidden;
+  cursor: pointer; transition: transform .15s, box-shadow .15s;
+  border-left: 3px solid transparent;
+}
+.jubbo-card:active { transform: scale(.99); }
+.jubbo-card:hover { border-left-color: var(--gold); box-shadow: 0 6px 20px var(--shadow); }
+.card-thumb { width: 100%; height: 150px; object-fit: cover; display: block; background: var(--cream-dark); }
+.card-body { padding: 14px 16px; }
+.card-date { font-size: 11px; color: var(--gold); font-weight: 600; letter-spacing: .8px; margin-bottom: 4px; }
+.card-title { font-family: 'Noto Serif KR', serif; font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
+.card-preview { font-size: 13px; color: var(--muted); line-height: 1.5; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--cream); color: var(--navy-light); font-weight: 500; }
+
+.empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty .e-icon { font-size: 52px; margin-bottom: 12px; }
+.empty p { font-size: 14px; line-height: 1.7; }
+
+/* ── Modal ── */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(10,15,30,.72); z-index: 200;
+  backdrop-filter: blur(4px); align-items: flex-end;
+}
+.overlay.open { display: flex; }
+.sheet {
+  background: var(--cream); border-radius: 24px 24px 0 0;
+  width: 100%; max-height: 93vh; overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom, 24px);
+}
+.handle { width: 40px; height: 4px; background: rgba(27,42,74,.2); border-radius: 2px; margin: 12px auto 0; }
+.m-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px; border-bottom: 1px solid var(--cream-dark);
+}
+.m-title { font-family: 'Noto Serif KR', serif; font-size: 18px; font-weight: 700; color: var(--navy); }
+.m-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--muted); padding: 4px; }
+.m-body { padding: 20px; }
+
+.modal-img { width: 100%; max-height: 240px; object-fit: contain; border-radius: 12px; background: #111827; margin-bottom: 20px; display: block; }
+
+.fl { font-size: 11px; font-weight: 600; color: var(--gold); letter-spacing: .8px; text-transform: uppercase; margin-bottom: 6px; }
+.fi {
+  width: 100%; padding: 12px 14px;
+  border: 1.5px solid var(--cream-dark); border-radius: 10px;
+  font-family: 'Noto Sans KR', sans-serif; font-size: 15px;
+  background: var(--white); color: var(--text); margin-bottom: 16px;
+  outline: none; transition: border-color .2s; appearance: none;
+}
+.fi:focus { border-color: var(--gold); }
+textarea.fi { min-height: 150px; resize: vertical; line-height: 1.7; }
+
+.tags-wrap {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 10px; border: 1.5px solid var(--cream-dark);
+  border-radius: 10px; background: var(--white); margin-bottom: 20px; cursor: text;
+}
+.tags-wrap:focus-within { border-color: var(--gold); }
+.tags-wrap .tag { cursor: pointer; }
+.tags-wrap .tag:hover { background: #fde8e8; color: var(--red); }
+#tagInput { border: none; outline: none; font-size: 14px; font-family: 'Noto Sans KR', sans-serif; flex: 1; min-width: 80px; background: transparent; color: var(--text); }
+
+.save-btn {
+  width: 100%; padding: 16px;
+  background: var(--navy); color: var(--white);
+  border: none; border-radius: 12px;
+  font-family: 'Noto Serif KR', serif; font-size: 16px; font-weight: 600;
+  cursor: pointer; letter-spacing: .3px; transition: all .2s;
+}
+.save-btn:active { background: var(--navy-light); }
+.del-btn {
+  width: 100%; padding: 12px; margin-top: 10px;
+  background: transparent; color: var(--red);
+  border: 1.5px solid rgba(192,57,43,.3); border-radius: 12px;
+  font-family: 'Noto Sans KR', sans-serif; font-size: 14px;
+  cursor: pointer; transition: all .2s;
+}
+.del-btn:active { background: rgba(192,57,43,.07); }
+
+/* ── Toast ── */
+.toast {
+  position: fixed; bottom: 36px; left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: var(--navy); color: var(--white);
+  padding: 12px 24px; border-radius: 24px;
+  font-size: 14px; font-weight: 500;
+  opacity: 0; transition: all .3s; z-index: 999; pointer-events: none; white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── Install banner ── */
+.install-banner {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  max-width: 480px; margin: 0 auto;
+  background: var(--gold); color: var(--navy);
+  padding: 16px 20px; z-index: 300;
+  flex-direction: row; align-items: center; justify-content: space-between;
+  font-weight: 600; font-size: 14px;
+  box-shadow: 0 -4px 20px rgba(0,0,0,.2);
+}
+.install-banner.show { display: flex; }
+.install-banner button {
+  background: var(--navy); color: var(--white);
+  border: none; border-radius: 8px;
+  padding: 8px 16px; font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: 'Noto Sans KR', sans-serif;
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-row">
+    <div class="app-title">주보 <span>메모</span></div>
+    <div class="header-date" id="hDate"></div>
+  </div>
+  <div class="gold-line"></div>
+</header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="camera" onclick="switchTab('camera',this)">📷 촬영</button>
+  <button class="tab-btn" data-tab="list" onclick="switchTab('list',this)">📖 목록</button>
+</nav>
+
+<!-- 촬영 탭 -->
+<div class="view active" id="view-camera">
+  <div class="cam-card">
+    <div class="cam-preview" id="camPreview">
+      <div class="corner c-tl"></div><div class="corner c-tr"></div>
+      <div class="corner c-bl"></div><div class="corner c-br"></div>
+      <div class="cam-placeholder" id="camPlaceholder">
+        <div class="big-icon">✝️</div>
+        <p>카메라로 촬영하거나<br>앨범에서 사진을 선택하세요</p>
+      </div>
+      <video id="videoEl" autoplay playsinline muted></video>
+      <img id="previewImg" alt="미리보기">
+    </div>
+    <div class="shutter-bar">
+      <button class="shutter-btn" onclick="capturePhoto()" title="촬영">📸</button>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <!-- 카메라 직접 실행 -->
+    <button class="act-btn btn-cam" id="camBtn" onclick="toggleCamera()">
+      <span class="icon">🎥</span>
+      <span id="camBtnTxt">카메라 켜기</span>
+    </button>
+
+    <!-- 갤러리/앨범 선택 -->
+    <button class="act-btn btn-album" onclick="openGallery()">
+      <span class="icon">🖼️</span>
+      <span>앨범에서 선택</span>
+    </button>
+  </div>
+
+  <!-- 카메라 직접 촬영용 (capture=environment) -->
+  <input type="file" id="inputCamera" accept="image/*" capture="environment" onchange="handleFile(event)">
+  <!-- 갤러리 선택용 (capture 없음) -->
+  <input type="file" id="inputGallery" accept="image/*" onchange="handleFile(event)">
+</div>
+
+<!-- 목록 탭 -->
+<div class="view" id="view-list">
+  <div class="list-header">
+    <div class="list-title">나의 주보</div>
+    <span class="badge" id="cntBadge">0장</span>
+  </div>
+  <div id="jubboList"></div>
+</div>
+
+<!-- 메모 모달 -->
+<div class="overlay" id="overlay" onclick="overlayClick(event)">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="m-header">
+      <div class="m-title" id="mTitle">메모 작성</div>
+      <button class="m-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="m-body">
+      <img class="modal-img" id="mImg" src="" alt="주보">
+      <div class="fl">예배 날짜</div>
+      <input class="fi" type="date" id="mDate">
+      <div class="fl">제목 (설교 제목 · 본문 등)</div>
+      <input class="fi" type="text" id="mMemoTitle" placeholder="예) 요한복음 3:16 · 하나님의 사랑">
+      <div class="fl">메모</div>
+      <textarea class="fi" id="mMemo" placeholder="은혜 받은 내용, 기도 제목, 결단 등을 자유롭게..."></textarea>
+      <div class="fl">태그 (Enter로 추가, 태그 누르면 삭제)</div>
+      <div class="tags-wrap" id="tagsWrap" onclick="focusTagInput()">
+        <input type="text" id="tagInput" placeholder="태그 입력..." onkeydown="onTagKey(event)">
+      </div>
+      <button class="save-btn" onclick="saveJubbo()">💾 저장하기</button>
+      <button class="del-btn" id="delBtn" style="display:none" onclick="deleteJubbo()">🗑️ 이 주보 삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- 설치 배너 -->
+<div class="install-banner" id="installBanner">
+  <span>📲 홈 화면에 앱으로 설치하기</span>
+  <button onclick="installApp()">설치</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── 상태 ──
+let db = JSON.parse(localStorage.getItem('jubbo') || '[]');
+let currentImg = null;   // base64
+let editId = null;
+let currentTags = [];
+let camStream = null;
+let camOn = false;
+let deferredPrompt = null;
+
+// ── 날짜 헤더 ──
+const now = new Date();
+document.getElementById('hDate').textContent =
+  now.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
+const todayStr = now.toISOString().slice(0,10);
+document.getElementById('mDate').value = todayStr;
+
+// ── PWA 설치 ──
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  document.getElementById('installBanner').classList.add('show');
+});
+function installApp() {
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => {
+    deferredPrompt = null;
+    document.getElementById('installBanner').classList.remove('show');
+  });
+}
+
+// ── Service Worker ──
+if('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(console.warn);
+}
+
+// ── 탭 ──
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-' + tab).classList.add('active');
+  if(tab === 'list') renderList();
+}
+
+// ── 카메라 토글 (인앱 카메라) ──
+async function toggleCamera() {
+  if(camOn) {
+    stopCam();
+  } else {
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width:{ideal:1280}, height:{ideal:1280} }
+      });
+      const v = document.getElementById('videoEl');
+      v.srcObject = camStream;
+      v.style.display = 'block';
+      document.getElementById('previewImg').style.display = 'none';
+      document.getElementById('camPlaceholder').style.display = 'none';
+      camOn = true;
+      document.getElementById('camBtn').classList.add('on');
+      document.getElementById('camBtnTxt').textContent = '카메라 끄기';
+    } catch(err) {
+      // getUserMedia 실패 시 input[capture]로 fallback
+      document.getElementById('inputCamera').click();
+    }
+  }
+}
+
+function stopCam() {
+  if(camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  document.getElementById('videoEl').style.display = 'none';
+  camOn = false;
+  document.getElementById('camBtn').classList.remove('on');
+  document.getElementById('camBtnTxt').textContent = '카메라 켜기';
+}
+
+// ── 셔터 ──
+function capturePhoto() {
+  const v = document.getElementById('videoEl');
+  if(!camOn || v.style.display === 'none') {
+    toast('카메라를 먼저 켜주세요 🎥'); return;
+  }
+  const c = document.createElement('canvas');
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext('2d').drawImage(v, 0, 0);
+  currentImg = c.toDataURL('image/jpeg', 0.85);
+
+  const img = document.getElementById('previewImg');
+  img.src = currentImg; img.style.display = 'block';
+  v.style.display = 'none';
+  stopCam();
+  toast('촬영 완료! ✍️');
+  openModal(null);
+}
+
+// ── 앨범 열기 (capture 없이 = 갤러리만) ──
+function openGallery() {
+  document.getElementById('inputGallery').click();
+}
+
+// ── 파일 처리 ──
+function handleFile(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    currentImg = ev.target.result;
+    const img = document.getElementById('previewImg');
+    img.src = currentImg; img.style.display = 'block';
+    document.getElementById('videoEl').style.display = 'none';
+    document.getElementById('camPlaceholder').style.display = 'none';
+    stopCam();
+    openModal(null);
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+// ── 모달 ──
+function openModal(jubbo) {
+  editId = jubbo ? jubbo.id : null;
+  currentTags = jubbo ? [...jubbo.tags] : [];
+  document.getElementById('mTitle').textContent = jubbo ? '메모 수정' : '메모 작성';
+  document.getElementById('mDate').value = jubbo ? jubbo.date : todayStr;
+  document.getElementById('mMemoTitle').value = jubbo ? jubbo.title : '';
+  document.getElementById('mMemo').value = jubbo ? jubbo.memo : '';
+  document.getElementById('mImg').src = jubbo ? jubbo.image : (currentImg || '');
+  document.getElementById('delBtn').style.display = jubbo ? 'block' : 'none';
+  renderTags();
+  document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  document.body.style.overflow = '';
+  editId = null;
+}
+
+function overlayClick(e) { if(e.target === document.getElementById('overlay')) closeModal(); }
+
+// ── 태그 ──
+function renderTags() {
+  const wrap = document.getElementById('tagsWrap');
+  wrap.innerHTML = '';
+  currentTags.forEach((t, i) => {
+    const s = document.createElement('span');
+    s.className = 'tag';
+    s.textContent = '# ' + t;
+    s.title = '눌러서 삭제';
+    s.onclick = () => { currentTags.splice(i,1); renderTags(); };
+    wrap.appendChild(s);
+  });
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.id = 'tagInput'; inp.placeholder = '태그 입력...';
+  inp.onkeydown = onTagKey;
+  wrap.appendChild(inp);
+}
+
+function focusTagInput() { document.getElementById('tagInput')?.focus(); }
+
+function onTagKey(e) {
+  const inp = document.getElementById('tagInput');
+  if((e.key === 'Enter' || e.key === ',') && inp.value.trim()) {
+    e.preventDefault();
+    const t = inp.value.trim().replace(/[,#]/g,'');
+    if(t && !currentTags.includes(t)) currentTags.push(t);
+    renderTags();
+    document.getElementById('tagInput')?.focus();
+  }
+}
+
+// ── 저장 ──
+function saveJubbo() {
+  const date = document.getElementById('mDate').value;
+  const title = document.getElementById('mMemoTitle').value.trim();
+  const memo = document.getElementById('mMemo').value.trim();
+  const inp = document.getElementById('tagInput');
+  if(inp && inp.value.trim()) {
+    const t = inp.value.trim().replace(/[,#]/g,'');
+    if(t && !currentTags.includes(t)) currentTags.push(t);
+  }
+  const imgSrc = document.getElementById('mImg').src;
+  if(!imgSrc || imgSrc === location.href) { toast('주보 사진을 추가해 주세요 📷'); return; }
+
+  if(editId) {
+    const idx = db.findIndex(j => j.id === editId);
+    if(idx !== -1) Object.assign(db[idx], { date, title, memo, tags: [...currentTags] });
+    toast('수정 완료 ✅');
+  } else {
+    db.unshift({ id: Date.now()+'', date, title, memo, tags:[...currentTags], image: currentImg || imgSrc, createdAt: new Date().toISOString() });
+    currentImg = null;
+    toast('저장 완료 🙏');
+  }
+  persist();
+  closeModal();
+  resetPreview();
+}
+
+function deleteJubbo() {
+  if(!editId || !confirm('이 주보를 삭제할까요?')) return;
+  db = db.filter(j => j.id !== editId);
+  persist(); closeModal(); renderList(); toast('삭제됐습니다');
+}
+
+function persist() { localStorage.setItem('jubbo', JSON.stringify(db)); }
+
+function resetPreview() {
+  document.getElementById('previewImg').style.display = 'none';
+  document.getElementById('camPlaceholder').style.display = 'flex';
+}
+
+// ── 목록 렌더 ──
+function renderList() {
+  const cnt = document.getElementById('cntBadge');
+  cnt.textContent = db.length + '장';
+  const el = document.getElementById('jubboList');
+  if(!db.length) {
+    el.innerHTML = `<div class="empty"><div class="e-icon">✝️</div><p>저장된 주보가 없습니다.<br>촬영 탭에서 주보를 찍어 저장해 보세요.</p></div>`;
+    return;
+  }
+  el.innerHTML = db.map(j => {
+    const d = j.date ? new Date(j.date+'T00:00').toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'}) : '';
+    const tags = j.tags.map(t=>`<span class="tag"># ${t}</span>`).join('');
+    return `<div class="jubbo-card" onclick='openModal(${JSON.stringify(j)})'>
+      <img class="card-thumb" src="${j.image}" alt="주보" loading="lazy">
+      <div class="card-body">
+        <div class="card-date">${d}</div>
+        <div class="card-title">${j.title || '(제목 없음)'}</div>
+        ${j.memo ? `<div class="card-preview">${j.memo}</div>` : ''}
+        ${tags ? `<div class="card-tags">${tags}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 토스트 ──
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+// 초기 렌더
+renderList();
+</script>
+</body>
+</html>
