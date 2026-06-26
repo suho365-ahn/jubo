@@ -581,10 +581,13 @@ function shoot() {
   canvas.width  = videoEl.videoWidth;
   canvas.height = videoEl.videoHeight;
   canvas.getContext('2d').drawImage(videoEl, 0, 0);
-  capturedImg = canvas.toDataURL('image/jpeg', .88);
-  previewImg.src = capturedImg;
-  stopCamera();
-  showState('preview');
+  const raw = canvas.toDataURL('image/jpeg', .88);
+  resizeImage(raw, 1920, 0.88, (resized) => {
+    capturedImg = resized;
+    previewImg.src = capturedImg;
+    stopCamera();
+    showState('preview');
+  });
 }
 
 document.getElementById('startCamBtn').addEventListener('click', startCamera);
@@ -599,13 +602,37 @@ fileInput.addEventListener('change', e => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    capturedImg = ev.target.result;
-    previewImg.src = capturedImg;
-    showState('preview');
+    resizeImage(ev.target.result, 1920, 0.88, (resized) => {
+      capturedImg = resized;
+      previewImg.src = capturedImg;
+      showState('preview');
+    });
   };
   reader.readAsDataURL(file);
   fileInput.value = '';
 });
+
+// 이미지 리사이즈 함수: 원본 비율 유지, 잘림 없음
+function resizeImage(dataUrl, maxPx, quality, callback) {
+  const img = new Image();
+  img.onload = () => {
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    // maxPx 이하면 그대로 사용 (화질 손상 방지)
+    if (w <= maxPx && h <= maxPx) {
+      callback(dataUrl);
+      return;
+    }
+    const scale = Math.min(maxPx / w, maxPx / h);
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    callback(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.src = dataUrl;
+}
 
 // cameraZone 탭 → idle 상태면 카메라 시작
 cameraZone.addEventListener('click', () => {
