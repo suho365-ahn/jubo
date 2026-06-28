@@ -730,34 +730,22 @@ fileInput.addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
 
-  // createObjectURL → 원본 해상도 보장 (FileReader base64보다 정확)
-  const objectUrl = URL.createObjectURL(file);
-  const img = new Image();
-  img.onload = () => {
-    // EXIF orientation 보정용 캔버스 (원본 픽셀 크기 그대로)
-    const canvas = document.createElement('canvas');
-    canvas.width  = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    canvas.getContext('2d').drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
-    capturedImg = canvas.toDataURL('image/jpeg', 1.0); // 품질 100% 원본
-    URL.revokeObjectURL(objectUrl);
+  // FileReader로 base64 읽기 — canvas 거치지 않아 원본 그대로 보존
+  const reader = new FileReader();
+  reader.onload = ev => {
+    capturedImg = ev.target.result;
+
+    // 해상도 확인용 (저장엔 영향 없음)
+    const check = new Image();
+    check.onload = () => {
+      toast(`사진 로드 완료! (${check.naturalWidth}×${check.naturalHeight})`);
+    };
+    check.src = capturedImg;
+
     previewImg.src = capturedImg;
     showState('preview');
-    toast(`사진 로드 완료! (${img.naturalWidth}×${img.naturalHeight})`);
   };
-  img.onerror = () => {
-    // fallback: FileReader
-    const reader = new FileReader();
-    reader.onload = ev => {
-      capturedImg = ev.target.result;
-      previewImg.src = capturedImg;
-      showState('preview');
-      toast('사진 로드 완료!');
-    };
-    reader.readAsDataURL(file);
-    URL.revokeObjectURL(objectUrl);
-  };
-  img.src = objectUrl;
+  reader.readAsDataURL(file);
   fileInput.value = '';
 });
 
