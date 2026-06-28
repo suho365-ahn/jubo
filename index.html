@@ -91,6 +91,7 @@
 
     /* ── 촬영 탭 ── */
     .camera-zone {
+      aspect-ratio: 3/4;
       background: #111;
       border-radius: var(--radius);
       overflow: hidden;
@@ -98,15 +99,9 @@
       display: flex; align-items: center; justify-content: center;
       margin-bottom: 14px;
       cursor: pointer;
-      min-height: 200px;
     }
-    /* 카메라 라이브 영상은 4:3 고정 */
-    .camera-zone video {
-      width: 100%; aspect-ratio: 4/3; object-fit: cover;
-    }
-    /* 갤러리/캡처 사진은 원본 비율 그대로 */
-    .camera-zone img {
-      width: 100%; height: auto; object-fit: contain; display: block;
+    .camera-zone video, .camera-zone img {
+      width: 100%; height: 100%; object-fit: cover;
     }
     .camera-zone .placeholder {
       display: flex; flex-direction: column; align-items: center; gap: 10px;
@@ -179,11 +174,8 @@
     }
     .entry-card:active { transform: scale(.99); box-shadow: none; }
     .entry-img {
-      width: 100%;
-      height: auto;
-      object-fit: contain;
-      display: block;
-      background: #111;
+      width: 100%; aspect-ratio: 16/9;
+      object-fit: cover; display: block;
     }
     .entry-img.no-img {
       aspect-ratio: unset; height: 56px;
@@ -224,7 +216,7 @@
       width: 40px; height: 4px; border-radius: 3px;
       background: var(--border); margin: 12px auto 0;
     }
-    .modal-img { width: 100%; height: auto; object-fit: contain; background: #111; display: block; }
+    .modal-img { width: 100%; max-height: 280px; object-fit: contain; background: #111; display: block; }
     .modal-body { padding: 16px; }
     .modal-title { font-size: 18px; font-weight: 700; margin: 8px 0; }
     .modal-meta { font-size: 13px; color: var(--sub); margin-bottom: 12px; }
@@ -376,7 +368,10 @@
           <label class="field-label">🏷️ 태그</label>
           <div class="tag-row" id="tagRow"></div>
 
-          <label class="field-label">💬 메모</label>
+          <label class="field-label" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>💬 메모</span>
+            <button class="btn btn-outline btn-sm" id="openBibleBtn" style="font-size:12px;padding:5px 12px;">📖 성경 구절 검색</button>
+          </label>
           <textarea class="memo-box" id="memoText" placeholder="설교 요점, 기도 제목, 광고 내용 등을 자유롭게 적어보세요…"></textarea>
 
           <div style="margin-top:14px;">
@@ -484,6 +479,47 @@
   </div>
 </div>
 
+<!-- 성경 검색 모달 -->
+<div class="modal-backdrop" id="bibleModal">
+  <div class="modal" style="padding-bottom:30px;max-height:92vh;">
+    <div class="modal-handle"></div>
+    <div class="modal-body" style="padding-bottom:0;">
+      <div class="modal-title" style="margin-bottom:12px;">📖 성경 구절 검색</div>
+
+      <!-- 책 선택 -->
+      <label class="field-label">성경책</label>
+      <div id="bibleBookGrid" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;max-height:140px;overflow-y:auto;"></div>
+
+      <!-- 장 / 절 입력 -->
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <div style="flex:1;">
+          <label class="field-label">장</label>
+          <input type="number" id="bibleChapter" min="1" max="150" placeholder="예: 3" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;outline:none;font-family:inherit;" />
+        </div>
+        <div style="flex:1;">
+          <label class="field-label">절 범위 (선택)</label>
+          <input type="text" id="bibleVerse" placeholder="예: 16 또는 16-17" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;outline:none;font-family:inherit;" />
+        </div>
+      </div>
+      <button class="btn btn-primary" id="bibleSearchBtn" style="width:100%;margin-bottom:12px;">🔍 구절 가져오기</button>
+
+      <!-- 결과 -->
+      <div id="bibleResult" style="display:none;">
+        <div id="bibleVerseText" style="background:var(--bg);border-radius:10px;padding:14px;font-size:15px;line-height:1.8;color:var(--text);margin-bottom:10px;border:1.5px solid var(--border);"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-green" id="bibleInsertBtn" style="flex:1;">✓ 메모에 삽입</button>
+          <button class="btn btn-secondary btn-sm" id="bibleCopyBtn" style="flex:1;">📋 복사</button>
+        </div>
+      </div>
+      <div id="bibleLoading" style="display:none;text-align:center;padding:20px;color:var(--sub);font-size:14px;">불러오는 중…</div>
+      <div id="bibleError"   style="display:none;text-align:center;padding:16px;color:var(--danger);font-size:13px;"></div>
+    </div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn btn-secondary btn-sm" id="bibleModalClose" style="flex:1;">닫기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 숨김 import input -->
 <input type="file" id="importInput" accept=".json" style="display:none;" />
 
@@ -586,13 +622,10 @@ function shoot() {
   canvas.width  = videoEl.videoWidth;
   canvas.height = videoEl.videoHeight;
   canvas.getContext('2d').drawImage(videoEl, 0, 0);
-  const raw = canvas.toDataURL('image/jpeg', .88);
-  resizeImage(raw, 1920, 0.88, (resized) => {
-    capturedImg = resized;
-    previewImg.src = capturedImg;
-    stopCamera();
-    showState('preview');
-  });
+  capturedImg = canvas.toDataURL('image/jpeg', .88);
+  previewImg.src = capturedImg;
+  stopCamera();
+  showState('preview');
 }
 
 document.getElementById('startCamBtn').addEventListener('click', startCamera);
@@ -607,37 +640,13 @@ fileInput.addEventListener('change', e => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    resizeImage(ev.target.result, 1920, 0.88, (resized) => {
-      capturedImg = resized;
-      previewImg.src = capturedImg;
-      showState('preview');
-    });
+    capturedImg = ev.target.result;
+    previewImg.src = capturedImg;
+    showState('preview');
   };
   reader.readAsDataURL(file);
   fileInput.value = '';
 });
-
-// 이미지 리사이즈 함수: 원본 비율 유지, 잘림 없음
-function resizeImage(dataUrl, maxPx, quality, callback) {
-  const img = new Image();
-  img.onload = () => {
-    const w = img.naturalWidth;
-    const h = img.naturalHeight;
-    // maxPx 이하면 그대로 사용 (화질 손상 방지)
-    if (w <= maxPx && h <= maxPx) {
-      callback(dataUrl);
-      return;
-    }
-    const scale = Math.min(maxPx / w, maxPx / h);
-    const canvas = document.createElement('canvas');
-    canvas.width  = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    callback(canvas.toDataURL('image/jpeg', quality));
-  };
-  img.src = dataUrl;
-}
 
 // cameraZone 탭 → idle 상태면 카메라 시작
 cameraZone.addEventListener('click', () => {
@@ -952,9 +961,198 @@ document.getElementById('tagModalClose').addEventListener('click', () => {
   document.getElementById('tagModal').classList.remove('open');
 });
 
+
 // ──────────────────────────────────────────────
-//  INIT
+//  성경 검색 (API.Bible / scripture.api.bible)
+//  무료 공개 API: getBible.net (별도 키 불필요)
 // ──────────────────────────────────────────────
+const BIBLE_BOOKS = [
+  {k:'GEN',n:'창세기'},{k:'EXO',n:'출애굽기'},{k:'LEV',n:'레위기'},{k:'NUM',n:'민수기'},{k:'DEU',n:'신명기'},
+  {k:'JOS',n:'여호수아'},{k:'JDG',n:'사사기'},{k:'RUT',n:'룻기'},{k:'1SA',n:'사무엘상'},{k:'2SA',n:'사무엘하'},
+  {k:'1KI',n:'열왕기상'},{k:'2KI',n:'열왕기하'},{k:'1CH',n:'역대상'},{k:'2CH',n:'역대하'},{k:'EZR',n:'에스라'},
+  {k:'NEH',n:'느헤미야'},{k:'EST',n:'에스더'},{k:'JOB',n:'욥기'},{k:'PSA',n:'시편'},{k:'PRO',n:'잠언'},
+  {k:'ECC',n:'전도서'},{k:'SNG',n:'아가'},{k:'ISA',n:'이사야'},{k:'JER',n:'예레미야'},{k:'LAM',n:'예레미야애가'},
+  {k:'EZK',n:'에스겔'},{k:'DAN',n:'다니엘'},{k:'HOS',n:'호세아'},{k:'JOL',n:'요엘'},{k:'AMO',n:'아모스'},
+  {k:'OBA',n:'오바댜'},{k:'JON',n:'요나'},{k:'MIC',n:'미가'},{k:'NAM',n:'나훔'},{k:'HAB',n:'하박국'},
+  {k:'ZEP',n:'스바냐'},{k:'HAG',n:'학개'},{k:'ZEC',n:'스가랴'},{k:'MAL',n:'말라기'},
+  {k:'MAT',n:'마태복음'},{k:'MRK',n:'마가복음'},{k:'LUK',n:'누가복음'},{k:'JHN',n:'요한복음'},{k:'ACT',n:'사도행전'},
+  {k:'ROM',n:'로마서'},{k:'1CO',n:'고린도전서'},{k:'2CO',n:'고린도후서'},{k:'GAL',n:'갈라디아서'},{k:'EPH',n:'에베소서'},
+  {k:'PHP',n:'빌립보서'},{k:'COL',n:'골로새서'},{k:'1TH',n:'데살로니가전서'},{k:'2TH',n:'데살로니가후서'},
+  {k:'1TI',n:'디모데전서'},{k:'2TI',n:'디모데후서'},{k:'TIT',n:'디도서'},{k:'PHM',n:'빌레몬서'},
+  {k:'HEB',n:'히브리서'},{k:'JAS',n:'야고보서'},{k:'1PE',n:'베드로전서'},{k:'2PE',n:'베드로후서'},
+  {k:'1JN',n:'요한일서'},{k:'2JN',n:'요한이서'},{k:'3JN',n:'요한삼서'},{k:'JUD',n:'유다서'},{k:'REV',n:'요한계시록'}
+];
+
+// getBible.net API 매핑 (osis → 영문 약자)
+const BOOK_MAP = {
+  GEN:'Genesis',EXO:'Exodus',LEV:'Leviticus',NUM:'Numbers',DEU:'Deuteronomy',
+  JOS:'Joshua',JDG:'Judges',RUT:'Ruth','1SA':'1Samuel','2SA':'2Samuel',
+  '1KI':'1Kings','2KI':'2Kings','1CH':'1Chronicles','2CH':'2Chronicles',EZR:'Ezra',
+  NEH:'Nehemiah',EST:'Esther',JOB:'Job',PSA:'Psalms',PRO:'Proverbs',
+  ECC:'Ecclesiastes',SNG:'SongofSolomon',ISA:'Isaiah',JER:'Jeremiah',LAM:'Lamentations',
+  EZK:'Ezekiel',DAN:'Daniel',HOS:'Hosea',JOL:'Joel',AMO:'Amos',
+  OBA:'Obadiah',JON:'Jonah',MIC:'Micah',NAM:'Nahum',HAB:'Habakkuk',
+  ZEP:'Zephaniah',HAG:'Haggai',ZEC:'Zechariah',MAL:'Malachi',
+  MAT:'Matthew',MRK:'Mark',LUK:'Luke',JHN:'John',ACT:'Acts',
+  ROM:'Romans','1CO':'1Corinthians','2CO':'2Corinthians',GAL:'Galatians',EPH:'Ephesians',
+  PHP:'Philippians',COL:'Colossians','1TH':'1Thessalonians','2TH':'2Thessalonians',
+  '1TI':'1Timothy','2TI':'2Timothy',TIT:'Titus',PHM:'Philemon',
+  HEB:'Hebrews',JAS:'James','1PE':'1Peter','2PE':'2Peter',
+  '1JN':'1John','2JN':'2John','3JN':'3John',JUD:'Jude',REV:'Revelation'
+};
+
+let selectedBook = null;
+
+// 성경책 버튼 그리드 렌더
+function renderBibleBookGrid() {
+  const grid = document.getElementById('bibleBookGrid');
+  grid.innerHTML = '';
+  const NT_START = 39; // 신약 시작 인덱스
+  BIBLE_BOOKS.forEach((b, i) => {
+    if (i === NT_START) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'width:100%;font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px;padding:4px 0 2px;';
+      sep.textContent = '— 신약 —';
+      grid.appendChild(sep);
+    }
+    const btn = document.createElement('button');
+    btn.textContent = b.n;
+    btn.dataset.key = b.k;
+    btn.style.cssText = `padding:5px 10px;border-radius:16px;font-size:12px;font-weight:600;
+      border:1.5px solid var(--border);background:var(--bg);color:var(--sub);cursor:pointer;transition:all .15s;`;
+    btn.addEventListener('click', () => {
+      selectedBook = b;
+      grid.querySelectorAll('button').forEach(x => {
+        x.style.background = 'var(--bg)';
+        x.style.borderColor = 'var(--border)';
+        x.style.color = 'var(--sub)';
+      });
+      btn.style.background = 'var(--blue)';
+      btn.style.borderColor = 'var(--blue)';
+      btn.style.color = '#fff';
+    });
+    grid.appendChild(btn);
+  });
+}
+
+// 성경 API 호출 (getBible.net - 무료, CORS 허용, 개역개정 KRV)
+async function fetchBibleVerses(bookKey, chapter, verseRange) {
+  const engBook = BOOK_MAP[bookKey];
+  if (!engBook) throw new Error('책 이름을 찾을 수 없습니다.');
+
+  // getBible.net: /passage.php?passage=John+3:16&version=kjv
+  // 한국어: 개역개정(korHRV) 또는 개역한글(kor)
+  const passage = verseRange
+    ? `${engBook}+${chapter}:${verseRange.replace('-', '-')}`
+    : `${engBook}+${chapter}`;
+
+  const url = `https://getBible.net/json?scripture=${encodeURIComponent(passage)}&version=Korean`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('API 오류: ' + res.status);
+
+  // getBible.net은 JSONP 형식으로 반환되므로 텍스트로 받아 파싱
+  let text = await res.text();
+  // JSONP 래퍼 제거: 앞 "(" 와 끝 ");" 제거
+  text = text.replace(/^\s*\(/, '').replace(/\);\s*$/, '');
+  const data = JSON.parse(text);
+
+  // 구절 추출
+  const chapterData = data?.book?.[0]?.chapter;
+  if (!chapterData) throw new Error('구절을 찾을 수 없습니다.');
+
+  const verses = Object.entries(chapterData).map(([v, d]) => ({
+    verse: parseInt(v),
+    text: d.verse
+  })).sort((a,b) => a.verse - b.verse);
+
+  // 절 범위 필터
+  if (verseRange) {
+    const parts = verseRange.split('-').map(Number);
+    const from = parts[0], to = parts[1] || parts[0];
+    return verses.filter(v => v.verse >= from && v.verse <= to);
+  }
+  return verses;
+}
+
+// 성경 검색 실행
+async function doSearch() {
+  if (!selectedBook) { toast('성경책을 선택해 주세요.'); return; }
+  const chapter = document.getElementById('bibleChapter').value.trim();
+  if (!chapter) { toast('장을 입력해 주세요.'); return; }
+  const verse = document.getElementById('bibleVerse').value.trim();
+
+  const resultEl  = document.getElementById('bibleResult');
+  const loadingEl = document.getElementById('bibleLoading');
+  const errorEl   = document.getElementById('bibleError');
+  const textEl    = document.getElementById('bibleVerseText');
+
+  resultEl.style.display  = 'none';
+  errorEl.style.display   = 'none';
+  loadingEl.style.display = 'block';
+
+  try {
+    const verses = await fetchBibleVerses(selectedBook.k, chapter, verse);
+    loadingEl.style.display = 'none';
+
+    if (!verses.length) throw new Error('구절이 없습니다.');
+
+    const ref = verse
+      ? `${selectedBook.n} ${chapter}:${verse}`
+      : `${selectedBook.n} ${chapter}장`;
+
+    const body = verses.map(v => `${v.verse}절 ${v.text}`).join('\n');
+    textEl.dataset.ref  = ref;
+    textEl.dataset.body = body;
+    textEl.innerHTML = `<strong style="color:var(--blue);font-size:13px;">${ref}</strong><br><br>`
+      + verses.map(v => `<span style="color:var(--sub);font-size:12px;">${v.verse}</span> ${v.text}`).join('<br>');
+    resultEl.style.display = 'block';
+  } catch(e) {
+    loadingEl.style.display = 'none';
+    errorEl.style.display   = 'block';
+    errorEl.textContent     = '⚠️ ' + (e.message || '구절을 불러올 수 없습니다. 인터넷 연결을 확인해 주세요.');
+  }
+}
+
+// 메모에 삽입
+document.getElementById('bibleInsertBtn').addEventListener('click', () => {
+  const textEl = document.getElementById('bibleVerseText');
+  const ref  = textEl.dataset.ref  || '';
+  const body = textEl.dataset.body || '';
+  const memo = document.getElementById('memoText');
+  const insert = `\n📖 ${ref}\n${body}\n`;
+  memo.value = memo.value + insert;
+  document.getElementById('bibleModal').classList.remove('open');
+  toast('메모에 성경 구절이 삽입되었습니다! 📖');
+});
+
+// 복사
+document.getElementById('bibleCopyBtn').addEventListener('click', () => {
+  const textEl = document.getElementById('bibleVerseText');
+  const ref  = textEl.dataset.ref  || '';
+  const body = textEl.dataset.body || '';
+  navigator.clipboard.writeText(`📖 ${ref}\n${body}`).then(() => toast('복사되었습니다!'));
+});
+
+// 버튼 이벤트
+document.getElementById('bibleSearchBtn').addEventListener('click', doSearch);
+document.getElementById('bibleChapter').addEventListener('keydown', e => { if(e.key==='Enter') doSearch(); });
+document.getElementById('bibleVerse').addEventListener('keydown',   e => { if(e.key==='Enter') doSearch(); });
+
+document.getElementById('openBibleBtn').addEventListener('click', () => {
+  renderBibleBookGrid();
+  document.getElementById('bibleResult').style.display  = 'none';
+  document.getElementById('bibleLoading').style.display = 'none';
+  document.getElementById('bibleError').style.display   = 'none';
+  document.getElementById('bibleChapter').value = '';
+  document.getElementById('bibleVerse').value   = '';
+  selectedBook = null;
+  document.getElementById('bibleModal').classList.add('open');
+});
+
+document.getElementById('bibleModalClose').addEventListener('click', () => {
+  document.getElementById('bibleModal').classList.remove('open');
+});
+
 renderTagRow();
 renderList();
 updateSettingsStats();
