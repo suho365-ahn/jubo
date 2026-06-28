@@ -374,6 +374,16 @@
           </label>
           <textarea class="memo-box" id="memoText" placeholder="설교 요점, 기도 제목, 광고 내용 등을 자유롭게 적어보세요…"></textarea>
 
+          <!-- 찬송/찬양 메모 -->
+          <div style="margin-top:16px;background:linear-gradient(135deg,#f0f4ff,#e8f0fe);border-radius:12px;padding:14px;border:1.5px solid #c7d7f8;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <span style="font-size:14px;font-weight:700;color:#1a56a4;">🎵 찬송 / 찬양</span>
+              <button class="btn btn-sm" id="addHymnBtn" style="background:#1a56a4;color:#fff;padding:5px 12px;font-size:12px;border-radius:8px;">＋ 추가</button>
+            </div>
+            <div id="hymnList"></div>
+            <div id="hymnEmpty" style="font-size:13px;color:#8896b0;text-align:center;padding:8px 0;">찬송가 번호나 곡명을 추가해 보세요</div>
+          </div>
+
           <div style="margin-top:14px;">
             <button class="btn btn-primary" id="saveBtn" style="width:100%;font-size:16px;padding:16px;">💾 저장하기</button>
           </div>
@@ -475,6 +485,54 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary btn-sm" id="tagModalClose" style="flex:1;">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 찬송 추가 모달 -->
+<div class="modal-backdrop" id="hymnModal">
+  <div class="modal" style="padding-bottom:30px;">
+    <div class="modal-handle"></div>
+    <div class="modal-body">
+      <div class="modal-title" style="margin-bottom:14px;">🎵 찬송 / 찬양 추가</div>
+
+      <!-- 종류 선택 -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <button class="hymn-type-btn active" data-type="찬송가" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--blue);background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer;">찬송가</button>
+        <button class="hymn-type-btn" data-type="복음성가" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);color:var(--sub);font-size:13px;font-weight:700;cursor:pointer;">복음성가</button>
+        <button class="hymn-type-btn" data-type="CCM" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);color:var(--sub);font-size:13px;font-weight:700;cursor:pointer;">CCM</button>
+      </div>
+
+      <!-- 찬송가 번호 (찬송가 선택 시) -->
+      <div id="hymnNumWrap">
+        <label class="field-label">찬송가 번호 (선택)</label>
+        <input type="number" id="hymnNum" min="1" max="645" placeholder="예: 93" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;outline:none;font-family:inherit;margin-bottom:10px;" />
+      </div>
+
+      <!-- 곡명 -->
+      <label class="field-label">곡명</label>
+      <input type="text" id="hymnName" placeholder="예: 주 하나님 지으신 모든 세계" maxlength="60"
+        style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;outline:none;font-family:inherit;margin-bottom:10px;" />
+
+      <!-- 구분 -->
+      <label class="field-label">예배 구분 (선택)</label>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;" id="hymnSectionRow">
+        <span class="hymn-sec off">예배전 찬양</span>
+        <span class="hymn-sec off">입례송</span>
+        <span class="hymn-sec off">찬송</span>
+        <span class="hymn-sec off">봉헌찬송</span>
+        <span class="hymn-sec off">헌신찬양</span>
+        <span class="hymn-sec off">폐회찬송</span>
+      </div>
+
+      <!-- 메모 -->
+      <label class="field-label">메모 (선택)</label>
+      <textarea id="hymnMemo" placeholder="은혜받은 가사, 느낀 점 등…" rows="2"
+        style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;outline:none;font-family:inherit;resize:none;line-height:1.6;"></textarea>
+    </div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn btn-secondary btn-sm" id="hymnModalClose" style="flex:1;">취소</button>
+      <button class="btn btn-primary btn-sm" id="hymnSaveBtn" style="flex:2;">✓ 추가</button>
     </div>
   </div>
 </div>
@@ -604,7 +662,11 @@ function showState(s) {
 
 async function startCamera() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width:{ideal:1280}, height:{ideal:960} }, audio: false });
+    // 카메라 최고 해상도로 요청 (제한 없음)
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width:{ideal:4096}, height:{ideal:3072} },
+      audio: false
+    });
     videoEl.srcObject = stream;
     showState('live');
   } catch(e) {
@@ -617,15 +679,44 @@ function stopCamera() {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
 }
 
+// 이미지 리사이즈: localStorage 용량 초과 방지용
+// 원본이 3MB 이하면 그대로, 초과 시에만 축소
+function resizeForStorage(base64, maxSizeMB = 3) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const maxBytes = maxSizeMB * 1024 * 1024;
+      // 원본 base64 크기 추정 (base64 → 실제 바이트)
+      const approxBytes = base64.length * 0.75;
+      if (approxBytes <= maxBytes) {
+        resolve(base64); // 원본 그대로 사용
+        return;
+      }
+      // 용량 초과 시만 리사이즈
+      const scale = Math.sqrt(maxBytes / approxBytes);
+      const w = Math.round(img.width  * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.92));
+    };
+    img.src = base64;
+  });
+}
+
 function shoot() {
   const canvas = document.createElement('canvas');
+  // 카메라 실제 해상도 그대로 캡처
   canvas.width  = videoEl.videoWidth;
   canvas.height = videoEl.videoHeight;
   canvas.getContext('2d').drawImage(videoEl, 0, 0);
-  capturedImg = canvas.toDataURL('image/jpeg', .88);
-  previewImg.src = capturedImg;
+  const raw = canvas.toDataURL('image/jpeg', 0.95);
   stopCamera();
+  previewImg.src = raw;
   showState('preview');
+  // 원본 저장 (나중에 저장버튼 누를 때 resizeForStorage 적용)
+  capturedImg = raw;
 }
 
 document.getElementById('startCamBtn').addEventListener('click', startCamera);
@@ -640,9 +731,11 @@ fileInput.addEventListener('change', e => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
+    // 갤러리: 원본 base64 그대로 미리보기 & 저장 대기
     capturedImg = ev.target.result;
     previewImg.src = capturedImg;
     showState('preview');
+    toast('사진 로드 완료!');
   };
   reader.readAsDataURL(file);
   fileInput.value = '';
@@ -689,29 +782,74 @@ function nextSunday() {
 // ──────────────────────────────────────────────
 //  SAVE
 // ──────────────────────────────────────────────
-document.getElementById('saveBtn').addEventListener('click', () => {
+document.getElementById('saveBtn').addEventListener('click', async () => {
   const date  = document.getElementById('entryDate').value || todayStr();
   const title = document.getElementById('entryTitle').value.trim() || formatDate(date) + ' 주보';
   const memo  = document.getElementById('memoText').value.trim();
 
   if (!capturedImg && !memo) { toast('사진이나 메모를 입력해 주세요.'); return; }
 
-  if (editId) {
-    const idx = entries.findIndex(e => e.id === editId);
-    if (idx !== -1) {
-      entries[idx] = { ...entries[idx], date, title, memo, tags: [...selTags], img: capturedImg };
-      toast('수정되었습니다!');
+  // 저장 버튼 비활성화 (중복 클릭 방지)
+  const saveBtn = document.getElementById('saveBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = '저장 중…';
+
+  // 이미지 용량 최적화 (3MB 초과 시만 축소)
+  let imgToSave = null;
+  if (capturedImg) {
+    try {
+      imgToSave = await resizeForStorage(capturedImg, 3);
+    } catch(e) {
+      imgToSave = capturedImg;
     }
-    editId = null;
-  } else {
-    entries.unshift({ id: Date.now().toString(), date, title, memo, tags: [...selTags], img: capturedImg, created: new Date().toISOString() });
-    toast('저장되었습니다! 📋');
   }
 
-  saveEntries();
+  const newEntry = { id: Date.now().toString(), date, title, memo, tags: [...selTags], img: imgToSave, hymns: [...hymnList], created: new Date().toISOString() };
+
+  try {
+    if (editId) {
+      const idx = entries.findIndex(e => e.id === editId);
+      if (idx !== -1) entries[idx] = { ...entries[idx], ...newEntry, id: editId };
+      editId = null;
+      toast('수정되었습니다!');
+    } else {
+      entries.unshift(newEntry);
+      toast('저장되었습니다! 📋');
+    }
+    saveEntries();
+  } catch(e) {
+    // localStorage 용량 초과 시 더 압축해서 재시도
+    if (e.name === 'QuotaExceededError' && imgToSave) {
+      try {
+        toast('용량 초과 — 이미지 최적화 중…');
+        imgToSave = await resizeForStorage(capturedImg, 1.5);
+        newEntry.img = imgToSave;
+        if (editId) {
+          const idx = entries.findIndex(e => e.id === editId);
+          if (idx !== -1) entries[idx] = { ...entries[idx], ...newEntry, id: editId };
+        } else {
+          entries.unshift(newEntry);
+        }
+        saveEntries();
+        toast('저장되었습니다! (이미지 최적화 적용)');
+      } catch(e2) {
+        toast('⚠️ 저장 공간 부족. 이전 기록을 삭제하거나 백업 후 삭제해 주세요.');
+        saveBtn.disabled = false;
+        saveBtn.textContent = '💾 저장하기';
+        return;
+      }
+    } else {
+      toast('⚠️ 저장에 실패했습니다.');
+      saveBtn.disabled = false;
+      saveBtn.textContent = '💾 저장하기';
+      return;
+    }
+  }
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = '💾 저장하기';
   resetForm();
   renderList();
-  // 목록 탭으로 이동
   setTimeout(() => {
     document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -728,6 +866,8 @@ function resetForm() {
   document.getElementById('entryDate').value  = nextSunday();
   document.getElementById('entryTitle').value = '';
   document.getElementById('memoText').value   = '';
+  hymnList = [];
+  renderHymnList();
   selTags = [];
   renderTagRow();
 }
@@ -812,6 +952,37 @@ function openModal(entry) {
   document.getElementById('modalMemo').textContent  = entry.memo || '(메모 없음)';
   const tRow = document.getElementById('modalTags');
   tRow.innerHTML = (entry.tags||[]).map(t=>`<span class="tag on" style="font-size:12px;padding:4px 12px;">${t}</span>`).join('');
+
+  // 찬송 표시
+  let hymnHtml = document.getElementById('modalHymns');
+  if (!hymnHtml) {
+    hymnHtml = document.createElement('div');
+    hymnHtml.id = 'modalHymns';
+    document.getElementById('modalMemo').after(hymnHtml);
+  }
+  const hymns = entry.hymns || [];
+  if (hymns.length) {
+    const HYMN_TYPE_COLORS = {
+      '찬송가':  { bg:'#e8f0fe', border:'#c7d7f8', badge:'#1a56a4' },
+      '복음성가': { bg:'#fef3e2', border:'#fad9a0', badge:'#e8a020' },
+      'CCM':     { bg:'#edfaf3', border:'#a8e6c4', badge:'#00b894' },
+    };
+    hymnHtml.innerHTML = `<div style="margin-top:14px;"><div style="font-size:12px;font-weight:700;color:var(--sub);letter-spacing:.5px;margin-bottom:8px;">🎵 찬송 / 찬양</div>`
+      + hymns.map(h => {
+          const c = HYMN_TYPE_COLORS[h.type] || HYMN_TYPE_COLORS['찬송가'];
+          return `<div style="padding:9px 12px;background:${c.bg};border:1.5px solid ${c.border};border-radius:9px;margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;">
+              <span style="font-size:11px;font-weight:700;background:${c.badge};color:#fff;padding:2px 7px;border-radius:8px;">${h.type}</span>
+              ${h.section ? `<span style="font-size:11px;color:var(--sub);">${h.section}</span>` : ''}
+            </div>
+            <div style="font-size:14px;font-weight:700;">${h.num ? `<span style="color:${c.badge};margin-right:4px;">${h.num}장</span>` : ''}${h.name}</div>
+            ${h.memo ? `<div style="font-size:12px;color:var(--sub);margin-top:3px;">${h.memo}</div>` : ''}
+          </div>`;
+        }).join('') + '</div>';
+  } else {
+    hymnHtml.innerHTML = '';
+  }
+
   document.getElementById('modalBackdrop').classList.add('open');
 }
 
@@ -835,7 +1006,9 @@ document.getElementById('modalEditBtn').addEventListener('click', () => {
   document.getElementById('entryDate').value  = currentEntry.date || '';
   document.getElementById('entryTitle').value = currentEntry.title || '';
   document.getElementById('memoText').value   = currentEntry.memo || '';
-  selTags = [...(currentEntry.tags||[])];
+  selTags   = [...(currentEntry.tags||[])];
+  hymnList  = [...(currentEntry.hymns||[])];
+  renderHymnList();
 
   if (capturedImg) { previewImg.src = capturedImg; showState('preview'); }
   else              { showState('idle'); }
@@ -961,6 +1134,121 @@ document.getElementById('tagModalClose').addEventListener('click', () => {
   document.getElementById('tagModal').classList.remove('open');
 });
 
+
+// ──────────────────────────────────────────────
+//  찬송 / 찬양 메모
+// ──────────────────────────────────────────────
+let hymnList = [];      // 현재 폼의 찬송 목록
+let hymnSelType    = '찬송가';
+let hymnSelSection = '';
+
+const HYMN_TYPE_COLORS = {
+  '찬송가':  { bg:'#e8f0fe', border:'#c7d7f8', badge:'#1a56a4', text:'#0f3d7a' },
+  '복음성가': { bg:'#fef3e2', border:'#fad9a0', badge:'#e8a020', text:'#7a4d0a' },
+  'CCM':     { bg:'#edfaf3', border:'#a8e6c4', badge:'#00b894', text:'#006644' },
+};
+
+function renderHymnList() {
+  const wrap  = document.getElementById('hymnList');
+  const empty = document.getElementById('hymnEmpty');
+  wrap.innerHTML = '';
+  empty.style.display = hymnList.length ? 'none' : 'block';
+
+  hymnList.forEach((h, i) => {
+    const c = HYMN_TYPE_COLORS[h.type] || HYMN_TYPE_COLORS['찬송가'];
+    const div = document.createElement('div');
+    div.style.cssText = `display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
+      background:${c.bg};border:1.5px solid ${c.border};border-radius:10px;margin-bottom:8px;`;
+    div.innerHTML = `
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:3px;">
+          <span style="font-size:11px;font-weight:700;background:${c.badge};color:#fff;padding:2px 8px;border-radius:10px;">${h.type}</span>
+          ${h.section ? `<span style="font-size:11px;color:${c.text};font-weight:600;">${h.section}</span>` : ''}
+        </div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">
+          ${h.num ? `<span style="color:${c.badge};margin-right:4px;">${h.num}장</span>` : ''}${h.name}
+        </div>
+        ${h.memo ? `<div style="font-size:12px;color:var(--sub);margin-top:3px;line-height:1.5;">${h.memo}</div>` : ''}
+      </div>
+      <button data-idx="${i}" class="hymn-del-btn" style="background:none;border:none;font-size:18px;color:#ccc;cursor:pointer;padding:0;line-height:1;">×</button>`;
+    wrap.appendChild(div);
+  });
+
+  wrap.querySelectorAll('.hymn-del-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      hymnList.splice(parseInt(btn.dataset.idx), 1);
+      renderHymnList();
+    });
+  });
+}
+
+// 타입 버튼 토글
+document.querySelectorAll('.hymn-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    hymnSelType = btn.dataset.type;
+    document.querySelectorAll('.hymn-type-btn').forEach(b => {
+      const on = b === btn;
+      b.style.background   = on ? 'var(--blue)' : 'var(--bg)';
+      b.style.color        = on ? '#fff' : 'var(--sub)';
+      b.style.borderColor  = on ? 'var(--blue)' : 'var(--border)';
+    });
+    document.getElementById('hymnNumWrap').style.display = hymnSelType === '찬송가' ? 'block' : 'none';
+  });
+});
+
+// 구분 칩 토글
+document.querySelectorAll('.hymn-sec').forEach(chip => {
+  chip.style.cssText += 'padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;border:1.5px solid var(--border);background:var(--bg);color:var(--sub);cursor:pointer;transition:all .15s;';
+  chip.addEventListener('click', () => {
+    hymnSelSection = hymnSelSection === chip.textContent ? '' : chip.textContent;
+    document.querySelectorAll('.hymn-sec').forEach(c => {
+      const on = c.textContent === hymnSelSection;
+      c.style.background  = on ? 'var(--blue)' : 'var(--bg)';
+      c.style.color       = on ? '#fff' : 'var(--sub)';
+      c.style.borderColor = on ? 'var(--blue)' : 'var(--border)';
+    });
+  });
+});
+
+// 추가 버튼
+document.getElementById('addHymnBtn').addEventListener('click', () => {
+  // 초기화
+  hymnSelType = '찬송가'; hymnSelSection = '';
+  document.querySelectorAll('.hymn-type-btn').forEach((b,i) => {
+    b.style.background  = i===0 ? 'var(--blue)' : 'var(--bg)';
+    b.style.color       = i===0 ? '#fff' : 'var(--sub)';
+    b.style.borderColor = i===0 ? 'var(--blue)' : 'var(--border)';
+  });
+  document.querySelectorAll('.hymn-sec').forEach(c => {
+    c.style.background='var(--bg)'; c.style.color='var(--sub)'; c.style.borderColor='var(--border)';
+  });
+  document.getElementById('hymnNum').value  = '';
+  document.getElementById('hymnName').value = '';
+  document.getElementById('hymnMemo').value = '';
+  document.getElementById('hymnNumWrap').style.display = 'block';
+  document.getElementById('hymnModal').classList.add('open');
+});
+
+// 저장
+document.getElementById('hymnSaveBtn').addEventListener('click', () => {
+  const name = document.getElementById('hymnName').value.trim();
+  const num  = document.getElementById('hymnNum').value.trim();
+  if (!name && !num) { toast('곡명 또는 번호를 입력해 주세요.'); return; }
+  hymnList.push({
+    type: hymnSelType,
+    num,
+    name: name || (num ? num + '장' : ''),
+    section: hymnSelSection,
+    memo: document.getElementById('hymnMemo').value.trim()
+  });
+  renderHymnList();
+  document.getElementById('hymnModal').classList.remove('open');
+  toast('찬송이 추가되었습니다! 🎵');
+});
+
+document.getElementById('hymnModalClose').addEventListener('click', () => {
+  document.getElementById('hymnModal').classList.remove('open');
+});
 
 // ──────────────────────────────────────────────
 //  성경 검색 (API.Bible / scripture.api.bible)
