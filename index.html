@@ -353,8 +353,8 @@
         <button class="btn btn-green"     id="confirmImgBtn">✓ 사용</button>
       </div>
 
-      <!-- 숨김 input -->
-      <input type="file" id="fileInput" accept="image/*" style="display:none;" />
+      <!-- 숨김 input — capture 속성 없어야 갤러리 원본 접근 가능 -->
+      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:none;" />
 
       <!-- 메모 입력 폼 -->
       <div class="card" id="memoForm">
@@ -729,15 +729,35 @@ document.getElementById('uploadBtn').addEventListener('click', () => fileInput.c
 fileInput.addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    // 갤러리: 원본 base64 그대로 미리보기 & 저장 대기
-    capturedImg = ev.target.result;
+
+  // createObjectURL → 원본 해상도 보장 (FileReader base64보다 정확)
+  const objectUrl = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    // EXIF orientation 보정용 캔버스 (원본 픽셀 크기 그대로)
+    const canvas = document.createElement('canvas');
+    canvas.width  = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.getContext('2d').drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
+    capturedImg = canvas.toDataURL('image/jpeg', 1.0); // 품질 100% 원본
+    URL.revokeObjectURL(objectUrl);
     previewImg.src = capturedImg;
     showState('preview');
-    toast('사진 로드 완료!');
+    toast(`사진 로드 완료! (${img.naturalWidth}×${img.naturalHeight})`);
   };
-  reader.readAsDataURL(file);
+  img.onerror = () => {
+    // fallback: FileReader
+    const reader = new FileReader();
+    reader.onload = ev => {
+      capturedImg = ev.target.result;
+      previewImg.src = capturedImg;
+      showState('preview');
+      toast('사진 로드 완료!');
+    };
+    reader.readAsDataURL(file);
+    URL.revokeObjectURL(objectUrl);
+  };
+  img.src = objectUrl;
   fileInput.value = '';
 });
 
