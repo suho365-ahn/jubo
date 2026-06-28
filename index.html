@@ -362,7 +362,7 @@
       </div>
 
       <!-- 숨김 input — capture 속성 없어야 갤러리 원본 접근 가능 -->
-      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:none;" />
+      <input type="file" id="fileInput" accept="image/*" style="display:none;" />
 
       <!-- 메모 입력 폼 -->
       <div class="card" id="memoForm">
@@ -736,27 +736,51 @@ document.getElementById('retakeBtn').addEventListener('click', () => { capturedI
 document.getElementById('confirmImgBtn').addEventListener('click', () => { toast('사진이 선택되었습니다!'); });
 
 document.getElementById('uploadBtn').addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', e => {
+fileInput.addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
+  fileInput.value = '';
 
-  // FileReader로 base64 읽기 — canvas 거치지 않아 원본 그대로 보존
-  const reader = new FileReader();
-  reader.onload = ev => {
-    capturedImg = ev.target.result;
+  toast('이미지 불러오는 중…');
 
-    // 해상도 확인용 (저장엔 영향 없음)
-    const check = new Image();
-    check.onload = () => {
-      toast(`사진 로드 완료! (${check.naturalWidth}×${check.naturalHeight})`);
-    };
-    check.src = capturedImg;
+  try {
+    // Blob URL → fetch → ArrayBuffer → base64
+    // 브라우저 축소 없이 파일 원본 바이트를 그대로 읽는 가장 안전한 방법
+    const blobUrl = URL.createObjectURL(file);
+    const res     = await fetch(blobUrl);
+    const buf     = await res.arrayBuffer();
+    URL.revokeObjectURL(blobUrl);
+
+    // ArrayBuffer → base64
+    const bytes  = new Uint8Array(buf);
+    let binary   = '';
+    // 한 번에 너무 많은 바이트를 spread하면 call stack 초과 → 청크 처리
+    const CHUNK  = 8192;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
+    const mime    = file.type || 'image/jpeg';
+    capturedImg   = `data:${mime};base64,` + btoa(binary);
+
+    // 해상도 확인
+    const check   = new Image();
+    check.onload  = () => toast(`로드 완료! (${check.naturalWidth}×${check.naturalHeight})`);
+    check.src     = capturedImg;
 
     previewImg.src = capturedImg;
     showState('preview');
-  };
-  reader.readAsDataURL(file);
-  fileInput.value = '';
+
+  } catch (err) {
+    // fallback: FileReader
+    const reader = new FileReader();
+    reader.onload = ev => {
+      capturedImg    = ev.target.result;
+      previewImg.src = capturedImg;
+      showState('preview');
+      toast('사진 로드 완료!');
+    };
+    reader.readAsDataURL(file);
+  }
 });
 
 // cameraZone 탭 → idle 상태면 카메라 시작
