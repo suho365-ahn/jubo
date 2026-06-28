@@ -551,6 +551,9 @@
     <div class="modal-handle"></div>
     <div class="modal-body" style="padding-bottom:0;">
       <div class="modal-title" style="margin-bottom:12px;">📖 성경 구절 검색</div>
+      <div style="font-size:12px;color:var(--sub);margin-bottom:10px;background:#f0f4ff;border-radius:8px;padding:7px 10px;">
+        ※ 개역한글 버전 제공 (개역개정은 저작권상 무료 API 없음)
+      </div>
 
       <!-- 책 선택 -->
       <label class="field-label">성경책</label>
@@ -1313,31 +1316,29 @@ const BIBLE_BOOKS = [
   {k:'1JN',n:'요한일서'},{k:'2JN',n:'요한이서'},{k:'3JN',n:'요한삼서'},{k:'JUD',n:'유다서'},{k:'REV',n:'요한계시록'}
 ];
 
-// getBible.net API 매핑 (osis → 영문 약자)
-const BOOK_MAP = {
-  GEN:'Genesis',EXO:'Exodus',LEV:'Leviticus',NUM:'Numbers',DEU:'Deuteronomy',
-  JOS:'Joshua',JDG:'Judges',RUT:'Ruth','1SA':'1Samuel','2SA':'2Samuel',
-  '1KI':'1Kings','2KI':'2Kings','1CH':'1Chronicles','2CH':'2Chronicles',EZR:'Ezra',
-  NEH:'Nehemiah',EST:'Esther',JOB:'Job',PSA:'Psalms',PRO:'Proverbs',
-  ECC:'Ecclesiastes',SNG:'SongofSolomon',ISA:'Isaiah',JER:'Jeremiah',LAM:'Lamentations',
-  EZK:'Ezekiel',DAN:'Daniel',HOS:'Hosea',JOL:'Joel',AMO:'Amos',
-  OBA:'Obadiah',JON:'Jonah',MIC:'Micah',NAM:'Nahum',HAB:'Habakkuk',
-  ZEP:'Zephaniah',HAG:'Haggai',ZEC:'Zechariah',MAL:'Malachi',
-  MAT:'Matthew',MRK:'Mark',LUK:'Luke',JHN:'John',ACT:'Acts',
-  ROM:'Romans','1CO':'1Corinthians','2CO':'2Corinthians',GAL:'Galatians',EPH:'Ephesians',
-  PHP:'Philippians',COL:'Colossians','1TH':'1Thessalonians','2TH':'2Thessalonians',
-  '1TI':'1Timothy','2TI':'2Timothy',TIT:'Titus',PHM:'Philemon',
-  HEB:'Hebrews',JAS:'James','1PE':'1Peter','2PE':'2Peter',
-  '1JN':'1John','2JN':'2John','3JN':'3John',JUD:'Jude',REV:'Revelation'
+// ── 성경 API: bolls.life (CORS 허용, 무료, 한국어 KOR = 개역한글)
+// 개역개정은 대한성서공회 저작권으로 무료 API 없음 → 개역한글 사용
+// bolls.life/get-text/KOR/{book번호}/{chapter}/
+// 책 번호: 구약 1~39, 신약 40(마태)~66(계시록)
+const BOOK_NUM = {
+  GEN:1,EXO:2,LEV:3,NUM:4,DEU:5,JOS:6,JDG:7,RUT:8,
+  '1SA':9,'2SA':10,'1KI':11,'2KI':12,'1CH':13,'2CH':14,
+  EZR:15,NEH:16,EST:17,JOB:18,PSA:19,PRO:20,ECC:21,SNG:22,
+  ISA:23,JER:24,LAM:25,EZK:26,DAN:27,HOS:28,JOL:29,AMO:30,
+  OBA:31,JON:32,MIC:33,NAM:34,HAB:35,ZEP:36,HAG:37,ZEC:38,MAL:39,
+  MAT:40,MRK:41,LUK:42,JHN:43,ACT:44,ROM:45,
+  '1CO':46,'2CO':47,GAL:48,EPH:49,PHP:50,COL:51,
+  '1TH':52,'2TH':53,'1TI':54,'2TI':55,TIT:56,PHM:57,
+  HEB:58,JAS:59,'1PE':60,'2PE':61,
+  '1JN':62,'2JN':63,'3JN':64,JUD:65,REV:66
 };
 
 let selectedBook = null;
 
-// 성경책 버튼 그리드 렌더
 function renderBibleBookGrid() {
   const grid = document.getElementById('bibleBookGrid');
   grid.innerHTML = '';
-  const NT_START = 39; // 신약 시작 인덱스
+  const NT_START = 39;
   BIBLE_BOOKS.forEach((b, i) => {
     if (i === NT_START) {
       const sep = document.createElement('div');
@@ -1353,55 +1354,40 @@ function renderBibleBookGrid() {
     btn.addEventListener('click', () => {
       selectedBook = b;
       grid.querySelectorAll('button').forEach(x => {
-        x.style.background = 'var(--bg)';
-        x.style.borderColor = 'var(--border)';
-        x.style.color = 'var(--sub)';
+        x.style.background='var(--bg)'; x.style.borderColor='var(--border)'; x.style.color='var(--sub)';
       });
-      btn.style.background = 'var(--blue)';
-      btn.style.borderColor = 'var(--blue)';
-      btn.style.color = '#fff';
+      btn.style.background='var(--blue)'; btn.style.borderColor='var(--blue)'; btn.style.color='#fff';
     });
     grid.appendChild(btn);
   });
 }
 
-// 성경 API 호출 (getBible.net - 무료, CORS 허용, 개역개정 KRV)
+// bolls.life API 호출 — CORS 허용, 무료
 async function fetchBibleVerses(bookKey, chapter, verseRange) {
-  const engBook = BOOK_MAP[bookKey];
-  if (!engBook) throw new Error('책 이름을 찾을 수 없습니다.');
+  const bookNum = BOOK_NUM[bookKey];
+  if (!bookNum) throw new Error('책 번호를 찾을 수 없습니다.');
 
-  // getBible.net: /passage.php?passage=John+3:16&version=kjv
-  // 한국어: 개역개정(korHRV) 또는 개역한글(kor)
-  const passage = verseRange
-    ? `${engBook}+${chapter}:${verseRange.replace('-', '-')}`
-    : `${engBook}+${chapter}`;
-
-  const url = `https://getBible.net/json?scripture=${encodeURIComponent(passage)}&version=Korean`;
+  // 장 전체 가져오기 (절 범위는 JS에서 필터)
+  const url = `https://bolls.life/get-text/KOR/${bookNum}/${chapter}/`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('API 오류: ' + res.status);
+  if (!res.ok) throw new Error('서버 오류: ' + res.status);
 
-  // getBible.net은 JSONP 형식으로 반환되므로 텍스트로 받아 파싱
-  let text = await res.text();
-  // JSONP 래퍼 제거: 앞 "(" 와 끝 ");" 제거
-  text = text.replace(/^\s*\(/, '').replace(/\);\s*$/, '');
-  const data = JSON.parse(text);
+  const data = await res.json(); // [{verse, text}, ...]
+  if (!data || !data.length) throw new Error('구절을 찾을 수 없습니다.');
 
-  // 구절 추출
-  const chapterData = data?.book?.[0]?.chapter;
-  if (!chapterData) throw new Error('구절을 찾을 수 없습니다.');
-
-  const verses = Object.entries(chapterData).map(([v, d]) => ({
-    verse: parseInt(v),
-    text: d.verse
-  })).sort((a,b) => a.verse - b.verse);
+  // HTML 태그 제거
+  const clean = data.map(v => ({
+    verse: v.verse,
+    text: v.text.replace(/<[^>]+>/g, '').trim()
+  }));
 
   // 절 범위 필터
   if (verseRange) {
     const parts = verseRange.split('-').map(Number);
     const from = parts[0], to = parts[1] || parts[0];
-    return verses.filter(v => v.verse >= from && v.verse <= to);
+    return clean.filter(v => v.verse >= from && v.verse <= to);
   }
-  return verses;
+  return clean;
 }
 
 // 성경 검색 실행
