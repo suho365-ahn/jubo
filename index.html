@@ -376,10 +376,17 @@
           <label class="field-label">🏷️ 태그</label>
           <div class="tag-row" id="tagRow"></div>
 
-          <label class="field-label" style="display:flex;align-items:center;justify-content:space-between;">
-            <span>💬 메모</span>
-            <button class="btn btn-outline btn-sm" id="openBibleBtn" style="font-size:12px;padding:5px 12px;">📖 성경 구절 검색</button>
-          </label>
+          <!-- 성경 구절 (메모와 분리된 별도 영역) -->
+          <div style="margin-top:4px;background:linear-gradient(135deg,#eef4ff,#e8f0fe);border-radius:12px;padding:14px;border:1.5px solid #c7d7f8;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <span style="font-size:14px;font-weight:700;color:#1a56a4;">📖 성경 구절</span>
+              <button class="btn btn-sm" id="openBibleBtn" style="background:#1a56a4;color:#fff;padding:5px 12px;font-size:12px;border-radius:8px;">＋ 검색해서 추가</button>
+            </div>
+            <div id="verseListWrap"></div>
+            <div id="verseEmpty" style="font-size:13px;color:#8896b0;text-align:center;padding:8px 0;">본문에 사용할 성경 구절을 검색해 추가해 보세요</div>
+          </div>
+
+          <label class="field-label">💬 메모</label>
           <textarea class="memo-box" id="memoText" placeholder="설교 요점, 기도 제목, 광고 내용 등을 자유롭게 적어보세요…"></textarea>
 
           <!-- 찬송/찬양 메모 -->
@@ -574,9 +581,10 @@
 
       <!-- 결과 -->
       <div id="bibleResult" style="display:none;">
+        <div id="bibleMissingWarn" style="display:none;font-size:12px;color:#a8710a;margin-bottom:8px;background:#fef3e2;border:1.5px solid #fad9a0;border-radius:8px;padding:7px 10px;"></div>
         <div id="bibleVerseText" style="background:var(--bg);border-radius:10px;padding:14px;font-size:15px;line-height:1.8;color:var(--text);margin-bottom:10px;border:1.5px solid var(--border);"></div>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-green" id="bibleInsertBtn" style="flex:1;">✓ 메모에 삽입</button>
+          <button class="btn btn-green" id="bibleInsertBtn" style="flex:1;">✓ 목록에 추가</button>
           <button class="btn btn-secondary btn-sm" id="bibleCopyBtn" style="flex:1;">📋 복사</button>
         </div>
       </div>
@@ -832,7 +840,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   const title = document.getElementById('entryTitle').value.trim() || formatDate(date) + ' 주보';
   const memo  = document.getElementById('memoText').value.trim();
 
-  if (!capturedImg && !memo) { toast('사진이나 메모를 입력해 주세요.'); return; }
+  if (!capturedImg && !memo && !verseList.length) { toast('사진, 메모, 성경 구절 중 하나는 입력해 주세요.'); return; }
 
   // 저장 버튼 비활성화 (중복 클릭 방지)
   const saveBtn = document.getElementById('saveBtn');
@@ -849,7 +857,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     }
   }
 
-  const newEntry = { id: Date.now().toString(), date, title, memo, tags: [...selTags], img: imgToSave, hymns: [...hymnList], created: new Date().toISOString() };
+  const newEntry = { id: Date.now().toString(), date, title, memo, tags: [...selTags], img: imgToSave, hymns: [...hymnList], verses: [...verseList], created: new Date().toISOString() };
 
   try {
     if (editId) {
@@ -913,6 +921,8 @@ function resetForm() {
   document.getElementById('memoText').value   = '';
   hymnList = [];
   renderHymnList();
+  verseList = [];
+  renderVerseList();
   selTags = [];
   renderTagRow();
 }
@@ -952,6 +962,7 @@ function renderList() {
   if (filterTag) data = data.filter(e => (e.tags||[]).includes(filterTag));
   if (searchQ)   data = data.filter(e =>
     e.title.includes(searchQ) || e.memo.includes(searchQ) || (e.tags||[]).some(t => t.includes(searchQ))
+    || (e.verses||[]).some(v => v.ref.includes(searchQ) || v.body.includes(searchQ))
   );
 
   if (!data.length) {
@@ -977,6 +988,7 @@ function renderList() {
           <div class="entry-tags">${tagHtml}</div>
         </div>
         <div class="entry-title">${entry.title}</div>
+        ${(entry.verses&&entry.verses.length) ? `<div style="font-size:12px;color:#1a56a4;font-weight:600;margin:2px 0;">📖 ${entry.verses[0].ref}${entry.verses.length>1 ? ` 외 ${entry.verses.length-1}건` : ''}</div>` : ''}
         ${entry.memo ? `<div class="entry-memo">${entry.memo}</div>` : ''}
       </div>`;
     card.addEventListener('click', () => openModal(entry));
@@ -997,6 +1009,24 @@ function openModal(entry) {
   document.getElementById('modalMemo').textContent  = entry.memo || '(메모 없음)';
   const tRow = document.getElementById('modalTags');
   tRow.innerHTML = (entry.tags||[]).map(t=>`<span class="tag on" style="font-size:12px;padding:4px 12px;">${t}</span>`).join('');
+
+  // 성경구절 표시
+  let verseHtml = document.getElementById('modalVerses');
+  if (!verseHtml) {
+    verseHtml = document.createElement('div');
+    verseHtml.id = 'modalVerses';
+    document.getElementById('modalMemo').after(verseHtml);
+  }
+  const verses = entry.verses || [];
+  if (verses.length) {
+    verseHtml.innerHTML = `<div style="margin-top:14px;"><div style="font-size:12px;font-weight:700;color:var(--sub);letter-spacing:.5px;margin-bottom:8px;">📖 성경 구절</div>`
+      + verses.map(v => `<div style="padding:10px 12px;background:#eef4ff;border:1.5px solid #c7d7f8;border-radius:9px;margin-bottom:6px;">
+          <div style="font-size:13px;font-weight:700;color:#1a56a4;margin-bottom:3px;">${v.ref}</div>
+          <div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;">${v.body}</div>
+        </div>`).join('') + '</div>';
+  } else {
+    verseHtml.innerHTML = '';
+  }
 
   // 찬송 표시
   let hymnHtml = document.getElementById('modalHymns');
@@ -1054,6 +1084,8 @@ document.getElementById('modalEditBtn').addEventListener('click', () => {
   selTags   = [...(currentEntry.tags||[])];
   hymnList  = [...(currentEntry.hymns||[])];
   renderHymnList();
+  verseList = [...(currentEntry.verses||[])];
+  renderVerseList();
 
   if (capturedImg) { previewImg.src = capturedImg; showState('preview'); }
   else              { showState('idle'); }
@@ -1179,6 +1211,38 @@ document.getElementById('tagModalClose').addEventListener('click', () => {
   document.getElementById('tagModal').classList.remove('open');
 });
 
+
+// ──────────────────────────────────────────────
+//  성경 구절 (메모와 분리된 별도 목록)
+// ──────────────────────────────────────────────
+let verseList = [];     // 현재 폼의 성경구절 목록 [{ref, body}]
+
+function renderVerseList() {
+  const wrap  = document.getElementById('verseListWrap');
+  const empty = document.getElementById('verseEmpty');
+  wrap.innerHTML = '';
+  empty.style.display = verseList.length ? 'none' : 'block';
+
+  verseList.forEach((v, i) => {
+    const div = document.createElement('div');
+    div.style.cssText = `display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
+      background:#fff;border:1.5px solid #c7d7f8;border-radius:10px;margin-bottom:8px;`;
+    div.innerHTML = `
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:#1a56a4;margin-bottom:3px;">${v.ref}</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;">${v.body}</div>
+      </div>
+      <button data-idx="${i}" class="verse-del-btn" style="background:none;border:none;font-size:18px;color:#ccc;cursor:pointer;padding:0;line-height:1;">×</button>`;
+    wrap.appendChild(div);
+  });
+
+  wrap.querySelectorAll('.verse-del-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      verseList.splice(parseInt(btn.dataset.idx), 1);
+      renderVerseList();
+    });
+  });
+}
 
 // ──────────────────────────────────────────────
 //  찬송 / 찬양 메모
@@ -1363,13 +1427,17 @@ function fetchBibleVerses(bookKey, chapter, verseRange) {
     .map(([v, t]) => ({ verse: parseInt(v), text: t }))
     .sort((a, b) => a.verse - b.verse);
 
+  let missing = [];
   if (verseRange) {
     const parts = verseRange.split('-').map(Number);
     const from = parts[0], to = parts[1] || parts[0];
-    verses = verses.filter(v => v.verse >= from && v.verse <= to);
+    const found = verses.filter(v => v.verse >= from && v.verse <= to);
+    const foundNums = new Set(found.map(v => v.verse));
+    for (let n = from; n <= to; n++) { if (!foundNums.has(n)) missing.push(n); }
+    verses = found;
     if (!verses.length) return Promise.reject(new Error(`${chapter}장 ${verseRange}절 데이터가 없습니다.\n(내장된 주요 구절만 검색 가능)`));
   }
-  return Promise.resolve(verses);
+  return Promise.resolve({ verses, missing });
 }
 
 // 성경 검색 실행
@@ -1383,13 +1451,15 @@ async function doSearch() {
   const loadingEl = document.getElementById('bibleLoading');
   const errorEl   = document.getElementById('bibleError');
   const textEl    = document.getElementById('bibleVerseText');
+  const warnEl    = document.getElementById('bibleMissingWarn');
 
   resultEl.style.display  = 'none';
   errorEl.style.display   = 'none';
+  warnEl.style.display    = 'none';
   loadingEl.style.display = 'block';
 
   try {
-    const verses = await fetchBibleVerses(selectedBook.k, chapter, verse);
+    const { verses, missing } = await fetchBibleVerses(selectedBook.k, chapter, verse);
     loadingEl.style.display = 'none';
 
     if (!verses.length) throw new Error('구절이 없습니다.');
@@ -1403,6 +1473,12 @@ async function doSearch() {
     textEl.dataset.body = body;
     textEl.innerHTML = `<strong style="color:var(--blue);font-size:13px;">${ref}</strong><br><br>`
       + verses.map(v => `<span style="color:var(--sub);font-size:12px;">${v.verse}</span> ${v.text}`).join('<br>');
+
+    if (missing && missing.length) {
+      warnEl.style.display = 'block';
+      warnEl.textContent = `⚠️ ${missing.join(', ')}절은 내장 데이터에 없어 표시되지 않았습니다. (주요 구절만 내장되어 있습니다)`;
+    }
+
     resultEl.style.display = 'block';
   } catch(e) {
     loadingEl.style.display = 'none';
@@ -1411,16 +1487,15 @@ async function doSearch() {
   }
 }
 
-// 메모에 삽입
+// 성경구절 목록에 추가 (메모와 분리)
 document.getElementById('bibleInsertBtn').addEventListener('click', () => {
   const textEl = document.getElementById('bibleVerseText');
   const ref  = textEl.dataset.ref  || '';
   const body = textEl.dataset.body || '';
-  const memo = document.getElementById('memoText');
-  const insert = `\n📖 ${ref}\n${body}\n`;
-  memo.value = memo.value + insert;
+  verseList.push({ ref, body });
+  renderVerseList();
   document.getElementById('bibleModal').classList.remove('open');
-  toast('메모에 성경 구절이 삽입되었습니다! 📖');
+  toast('성경 구절이 추가되었습니다! 📖');
 });
 
 // 복사
