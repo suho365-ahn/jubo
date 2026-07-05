@@ -606,6 +606,7 @@
 // ──────────────────────────────────────────────
 const STORE_KEY   = 'jubo_entries';
 const TAGS_KEY    = 'jubo_tags';
+const DRAFT_KEY   = 'jubo_draft';
 const DEFAULT_TAGS = ['설교','기도','광고','감사','성경봉독','헌신'];
 
 let entries   = JSON.parse(localStorage.getItem(STORE_KEY)  || '[]');
@@ -620,6 +621,63 @@ let editId       = null;      // 편집 중 ID
 
 function saveEntries() { localStorage.setItem(STORE_KEY, JSON.stringify(entries)); }
 function saveTags()    { localStorage.setItem(TAGS_KEY,  JSON.stringify(allTags)); }
+
+// ──────────────────────────────────────────────
+//  임시 저장 (창을 닫아도 작성 중이던 내용 유지)
+// ──────────────────────────────────────────────
+function saveDraft() {
+  const draft = {
+    editId: editId,
+    date:  document.getElementById('entryDate').value,
+    title: document.getElementById('entryTitle').value,
+    memo:  document.getElementById('memoText').value,
+    tags:  [...selTags],
+    img:   capturedImg,
+    hymns:  [...hymnList],
+    verses: [...verseList],
+  };
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch(e) {
+    // 이미지가 너무 커서 용량 초과 시, 이미지 없이라도 나머지 내용은 저장 시도
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, img: null }));
+    } catch(e2) { /* 그래도 실패하면 임시저장은 조용히 포기 (본 저장엔 영향 없음) */ }
+  }
+}
+
+function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
+
+function loadDraft() {
+  let draft;
+  try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch(e) { draft = null; }
+  if (!draft) return;
+
+  const hasContent = draft.memo || draft.img || draft.title
+    || (draft.tags   && draft.tags.length)
+    || (draft.hymns  && draft.hymns.length)
+    || (draft.verses && draft.verses.length);
+  if (!hasContent) return;
+
+  editId = draft.editId || null;
+  document.getElementById('entryDate').value  = draft.date  || nextSunday();
+  document.getElementById('entryTitle').value = draft.title || '';
+  document.getElementById('memoText').value   = draft.memo  || '';
+
+  selTags = [...(draft.tags||[])];
+  renderTagRow();
+
+  hymnList = [...(draft.hymns||[])];
+  renderHymnList();
+
+  verseList = [...(draft.verses||[])];
+  renderVerseList();
+
+  capturedImg = draft.img || null;
+  if (capturedImg) { previewImg.src = capturedImg; showState('preview'); }
+
+  toast('작성 중이던 내용을 불러왔습니다 📝');
+}
 
 // ──────────────────────────────────────────────
 //  TOAST
@@ -738,12 +796,13 @@ function shoot() {
   showState('preview');
   // 원본 저장 (나중에 저장버튼 누를 때 resizeForStorage 적용)
   capturedImg = raw;
+  saveDraft();
 }
 
 document.getElementById('startCamBtn').addEventListener('click', startCamera);
 document.getElementById('shootBtn').addEventListener('click', shoot);
 document.getElementById('cancelCamBtn').addEventListener('click', () => { stopCamera(); showState('idle'); });
-document.getElementById('retakeBtn').addEventListener('click', () => { capturedImg=null; startCamera(); });
+document.getElementById('retakeBtn').addEventListener('click', () => { capturedImg=null; saveDraft(); startCamera(); });
 document.getElementById('confirmImgBtn').addEventListener('click', () => { toast('사진이 선택되었습니다!'); });
 
 document.getElementById('uploadBtn').addEventListener('click', () => fileInput.click());
@@ -780,6 +839,7 @@ fileInput.addEventListener('change', async e => {
 
     previewImg.src = capturedImg;
     showState('preview');
+    saveDraft();
 
   } catch (err) {
     // fallback: FileReader
@@ -789,6 +849,7 @@ fileInput.addEventListener('change', async e => {
       previewImg.src = capturedImg;
       showState('preview');
       toast('사진 로드 완료!');
+      saveDraft();
     };
     reader.readAsDataURL(file);
   }
@@ -813,6 +874,7 @@ function renderTagRow() {
     el.addEventListener('click', () => {
       selTags = on ? selTags.filter(x => x!==t) : [...selTags, t];
       renderTagRow();
+      saveDraft();
     });
     row.appendChild(el);
   });
@@ -925,6 +987,7 @@ function resetForm() {
   renderVerseList();
   selTags = [];
   renderTagRow();
+  clearDraft();
 }
 
 // ──────────────────────────────────────────────
@@ -1097,6 +1160,7 @@ document.getElementById('modalEditBtn').addEventListener('click', () => {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelector('[data-tab="capture"]').classList.add('active');
   document.getElementById('tab-capture').classList.add('active');
+  saveDraft();
   toast('편집 모드입니다. 수정 후 저장하세요.');
 });
 
@@ -1240,6 +1304,7 @@ function renderVerseList() {
     btn.addEventListener('click', () => {
       verseList.splice(parseInt(btn.dataset.idx), 1);
       renderVerseList();
+      saveDraft();
     });
   });
 }
@@ -1287,6 +1352,7 @@ function renderHymnList() {
     btn.addEventListener('click', () => {
       hymnList.splice(parseInt(btn.dataset.idx), 1);
       renderHymnList();
+      saveDraft();
     });
   });
 }
@@ -1351,6 +1417,7 @@ document.getElementById('hymnSaveBtn').addEventListener('click', () => {
     memo: document.getElementById('hymnMemo').value.trim()
   });
   renderHymnList();
+  saveDraft();
   document.getElementById('hymnModal').classList.remove('open');
   toast('찬송이 추가되었습니다! 🎵');
 });
@@ -1494,6 +1561,7 @@ document.getElementById('bibleInsertBtn').addEventListener('click', () => {
   const body = textEl.dataset.body || '';
   verseList.push({ ref, body });
   renderVerseList();
+  saveDraft();
   document.getElementById('bibleModal').classList.remove('open');
   toast('성경 구절이 추가되었습니다! 📖');
 });
@@ -1530,6 +1598,17 @@ renderTagRow();
 renderList();
 updateSettingsStats();
 document.getElementById('entryDate').value = nextSunday();
+loadDraft();
+
+['entryDate','entryTitle','memoText'].forEach(id => {
+  document.getElementById(id).addEventListener('input', saveDraft);
+});
+
+// 앱이 백그라운드로 가거나 닫힐 때 최종 스냅샷 저장 (안전장치)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveDraft();
+});
+window.addEventListener('pagehide', saveDraft);
 </script>
 <script>if("serviceWorker"in navigator){navigator.serviceWorker.register("./sw.js");}</script>
 </body>
