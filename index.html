@@ -902,8 +902,6 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   const title = document.getElementById('entryTitle').value.trim() || formatDate(date) + ' 주보';
   const memo  = document.getElementById('memoText').value.trim();
 
-  if (!capturedImg && !memo && !verseList.length) { toast('사진, 메모, 성경 구절 중 하나는 입력해 주세요.'); return; }
-
   // 저장 버튼 비활성화 (중복 클릭 방지)
   const saveBtn = document.getElementById('saveBtn');
   saveBtn.disabled = true;
