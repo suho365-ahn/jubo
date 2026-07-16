@@ -917,34 +917,39 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   }
 
   const newEntry = { id: Date.now().toString(), date, title, memo, tags: [...selTags], img: imgToSave, hymns: [...hymnList], verses: [...verseList], created: new Date().toISOString() };
+  const wasEdit = !!editId;
 
-  try {
-    if (editId) {
+  // 저장 실패 시 되돌릴 수 있도록 스냅샷 보관 (중복 저장 방지)
+  const snapshot = entries.slice();
+
+  function applyEntry() {
+    if (wasEdit) {
       const idx = entries.findIndex(e => e.id === editId);
       if (idx !== -1) entries[idx] = { ...entries[idx], ...newEntry, id: editId };
-      editId = null;
-      toast('수정되었습니다!');
     } else {
       entries.unshift(newEntry);
-      toast('저장되었습니다! 📋');
     }
+  }
+
+  try {
+    applyEntry();
     saveEntries();
+    editId = null;
+    toast(wasEdit ? '수정되었습니다!' : '저장되었습니다! 📋');
   } catch(e) {
+    entries = snapshot;   // 실패했으니 방금 추가/수정한 내용 되돌리기
     // localStorage 용량 초과 시 더 압축해서 재시도
     if (e.name === 'QuotaExceededError' && imgToSave) {
       try {
         toast('용량 초과 — 이미지 최적화 중…');
         imgToSave = await resizeForStorage(capturedImg, 1.5);
         newEntry.img = imgToSave;
-        if (editId) {
-          const idx = entries.findIndex(e => e.id === editId);
-          if (idx !== -1) entries[idx] = { ...entries[idx], ...newEntry, id: editId };
-        } else {
-          entries.unshift(newEntry);
-        }
+        applyEntry();
         saveEntries();
+        editId = null;
         toast('저장되었습니다! (이미지 최적화 적용)');
       } catch(e2) {
+        entries = snapshot;   // 재시도도 실패 — 다시 되돌리기
         toast('⚠️ 저장 공간 부족. 이전 기록을 삭제하거나 백업 후 삭제해 주세요.');
         saveBtn.disabled = false;
         saveBtn.textContent = '💾 저장하기';
