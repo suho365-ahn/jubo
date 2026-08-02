@@ -577,7 +577,7 @@
           <input type="text" id="bibleVerse" placeholder="예: 16 또는 16-17" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;outline:none;font-family:inherit;" />
         </div>
       </div>
-      <button class="btn btn-primary" id="bibleSearchBtn" style="width:100%;margin-bottom:12px;">🔍 개역한글로 보기</button>
+      <button class="btn btn-primary" id="bibleSearchBtn" style="width:100%;margin-bottom:12px;">🔍 개역개정으로 보기</button>
 
       <!-- 결과 -->
       <div id="bibleResult" style="display:none;">
@@ -1535,7 +1535,7 @@ function renderBibleBookGrid() {
   });
 }
 
-// 성경 검색 실행 → 대한성서공회 개역한글 링크 생성
+// 성경 검색 실행 → 대한성서공회 개역개정 링크 생성
 function doSearch() {
   if (!selectedBook) { toast('성경책을 선택해 주세요.'); return; }
   const chapter = document.getElementById('bibleChapter').value.trim();
