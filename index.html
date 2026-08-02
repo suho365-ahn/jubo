@@ -559,7 +559,7 @@
     <div class="modal-body" style="padding-bottom:0;">
       <div class="modal-title" style="margin-bottom:12px;">📖 성경 구절 검색</div>
       <div style="font-size:12px;color:#1a56a4;margin-bottom:10px;background:#e8f0fe;border-radius:8px;padding:7px 10px;">
-        책·장·절을 선택하면 대한성서공회 사이트에서 개역한글 본문을 바로 보여드려요.
+        책·장·절을 선택하면 대한성서공회 사이트에서 본문을 바로 보여드려요.
       </div>
 
       <!-- 책 선택 (구약/신약 접기·펼치기) -->
@@ -1472,15 +1472,16 @@ const BIBLE_BOOKS = [
 ];
 
 let selectedBook = null;
+const selectedVersion = 'GAE';   // 개역개정 고정
 
-// 대한성서공회 개역한글 링크 생성 (책코드는 bskorea 표기와 동일한 3자 코드 사용)
+// 대한성서공회 링크 생성 (책코드는 bskorea 표기와 동일한 3자 코드 사용)
 function bibleLink(bookKey, chapter, verse) {
   const c = String(chapter).padStart(3,'0');
   if (verse) {
     const v = String(verse).padStart(3,'0');
-    return `https://www.bskorea.or.kr/bible/korbibReadpage.php?linkBible=BHAN${bookKey.toLowerCase()}${c}${v}`;
+    return `https://www.bskorea.or.kr/bible/korbibReadpage.php?linkBible=B${selectedVersion}${bookKey.toLowerCase()}${c}${v}`;
   }
-  return `https://www.bskorea.or.kr/bible/korbibReadpage.php?version=HAN&book=${bookKey.toLowerCase()}&chap=${chapter}`;
+  return `https://www.bskorea.or.kr/bible/korbibReadpage.php?version=${selectedVersion}&book=${bookKey.toLowerCase()}&chap=${chapter}`;
 }
 
 // 구약/신약 접기·펼치기 + 소제목(그룹)별 책 목록
@@ -1555,13 +1556,14 @@ function doSearch() {
     return;
   }
 
-  const ref  = verseRaw ? `${selectedBook.n} ${chapter}:${verseRaw}` : `${selectedBook.n} ${chapter}장`;
+  const versionLabel = selectedVersion === 'GAE' ? '개역개정' : '개역한글';
+  const ref  = verseRaw ? `${selectedBook.n} ${chapter}:${verseRaw} (${versionLabel})` : `${selectedBook.n} ${chapter}장 (${versionLabel})`;
   const link = bibleLink(selectedBook.k, chapter, verse);
 
   textEl.dataset.ref  = ref;
   textEl.dataset.link = link;
   textEl.innerHTML = `<strong style="color:var(--blue);font-size:14px;">${ref}</strong><br>`
-    + `<a href="${link}" target="_blank" rel="noopener" style="color:var(--blue);font-size:13px;text-decoration:underline;">개역한글 본문 보러가기 ↗</a>`;
+    + `<a href="${link}" target="_blank" rel="noopener" style="color:var(--blue);font-size:13px;text-decoration:underline;">${versionLabel} 본문 보러가기 ↗</a>`;
 
   resultEl.style.display = 'block';
 }
