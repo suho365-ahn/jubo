@@ -659,7 +659,7 @@ function loadDraft() {
   if (!hasContent) return;
 
   editId = draft.editId || null;
-  document.getElementById('entryDate').value  = draft.date  || nextSunday();
+  document.getElementById('entryDate').value  = draft.date  || todayStr();
   document.getElementById('entryTitle').value = draft.title || '';
   document.getElementById('memoText').value   = draft.memo  || '';
 
@@ -980,7 +980,7 @@ function resetForm() {
   stopCamera();
   showState('idle');
   previewImg.src = '';
-  document.getElementById('entryDate').value  = nextSunday();
+  document.getElementById('entryDate').value  = todayStr();
   document.getElementById('entryTitle').value = '';
   document.getElementById('memoText').value   = '';
   hymnList = [];
@@ -1610,7 +1610,7 @@ document.getElementById('bibleModalClose').addEventListener('click', () => {
 renderTagRow();
 renderList();
 updateSettingsStats();
-document.getElementById('entryDate').value = nextSunday();
+document.getElementById('entryDate').value = todayStr();
 loadDraft();
 
 ['entryDate','entryTitle','memoText'].forEach(id => {
