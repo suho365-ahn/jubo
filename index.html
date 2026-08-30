@@ -751,6 +751,12 @@ function loadDraft() {
   capturedImg = draft.img || null;
   if (capturedImg) { previewImg.src = capturedImg; showState('preview'); }
 
+  // 작성 중이던 화면으로 바로 이동
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('[data-tab="capture"]').classList.add('active');
+  document.getElementById('tab-capture').classList.add('active');
+
   toast('작성 중이던 내용을 불러왔습니다 📝');
 }
 
