@@ -582,7 +582,17 @@
           <input type="text" id="bibleVerse" placeholder="예: 16 또는 16-17" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;outline:none;font-family:inherit;" />
         </div>
       </div>
-      <button class="btn btn-primary" id="bibleSearchBtn" style="width:100%;margin-bottom:12px;">🔍 개역개정으로 보기</button>
+      <button class="btn btn-primary" id="bibleSearchBtn" style="width:100%;margin-bottom:10px;">🔍 개역개정으로 보기</button>
+
+      <!-- 절은 모르지만 단어는 아는 경우 -->
+      <div style="margin-bottom:12px;padding:10px 12px;background:var(--bg);border:1.5px dashed var(--border);border-radius:10px;">
+        <label class="field-label" style="margin-bottom:6px;">💡 절 번호는 모르고 단어만 알 때</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="bibleKeyword" placeholder="예: 사랑, 은혜" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;outline:none;font-family:inherit;" />
+          <button class="btn btn-outline btn-sm" id="bibleKeywordSearchBtn" style="white-space:nowrap;">단어로 찾기</button>
+        </div>
+        <div style="font-size:11px;color:var(--sub);margin-top:6px;">책·장을 고른 뒤 단어를 입력하면, 대한성서공회 그 장(章) 페이지를 열면서 해당 단어를 자동으로 찾아 표시해 드려요. (일부 브라우저에서는 자동 표시가 안 될 수 있어요 — 그럴 땐 페이지에서 직접 찾아보세요.)</div>
+      </div>
 
       <!-- 결과 -->
       <div id="bibleResult" style="display:none;">
@@ -1731,12 +1741,33 @@ document.getElementById('bibleSearchBtn').addEventListener('click', doSearch);
 document.getElementById('bibleChapter').addEventListener('keydown', e => { if(e.key==='Enter') doSearch(); });
 document.getElementById('bibleVerse').addEventListener('keydown',   e => { if(e.key==='Enter') doSearch(); });
 
+// 절 번호는 모르고 단어만 아는 경우: 해당 장(章) 전체 페이지를 열되, 그 단어를 자동으로 찾아 표시
+document.getElementById('bibleKeywordSearchBtn').addEventListener('click', () => {
+  if (!selectedBook) { toast('성경책을 선택해 주세요.'); return; }
+  const chapter = document.getElementById('bibleChapter').value.trim();
+  if (!chapter || !/^\d+$/.test(chapter)) { toast('장을 먼저 입력해 주세요.'); return; }
+  const keyword = document.getElementById('bibleKeyword').value.trim();
+  if (!keyword) { toast('찾을 단어를 입력해 주세요.'); return; }
+
+  const chapters = BIBLE_STRUCTURE[selectedBook.k];
+  const chapterNum = parseInt(chapter);
+  if (!chapters || chapterNum < 1 || chapterNum > chapters.length) {
+    toast(`${selectedBook.n}에는 ${chapter}장이 없습니다. (총 ${chapters ? chapters.length : 0}장)`);
+    return;
+  }
+
+  const chapterLink = bibleLink(selectedBook.k, chapter, '');
+  const textFragmentUrl = `${chapterLink}#:~:text=${encodeURIComponent(keyword)}`;
+  window.open(textFragmentUrl, '_blank', 'noopener');
+});
+
 document.getElementById('openBibleBtn').addEventListener('click', () => {
   renderBibleBookGrid();
   document.getElementById('bibleResult').style.display  = 'none';
   document.getElementById('bibleError').style.display   = 'none';
   document.getElementById('bibleChapter').value = '';
   document.getElementById('bibleVerse').value   = '';
+  document.getElementById('bibleKeyword').value = '';
   selectedBook = null;
   document.getElementById('bibleModal').classList.add('open');
 });
