@@ -389,6 +389,19 @@
           <label class="field-label">💬 메모</label>
           <textarea class="memo-box" id="memoText" placeholder="설교 요점, 기도 제목, 광고 내용 등을 자유롭게 적어보세요…"></textarea>
 
+          <!-- 국어사전 (모르는 단어 뜻풀이 링크 모음) -->
+          <div style="margin-top:16px;background:linear-gradient(135deg,#eef8f0,#e8fbe8);border-radius:12px;padding:14px;border:1.5px solid #c7e8c7;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <span style="font-size:14px;font-weight:700;color:#1a7a3a;">📔 국어사전</span>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <input type="text" id="dictWordInput" placeholder="모르는 단어 (예: 은혜, 공교히)" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;outline:none;font-family:inherit;" />
+              <button class="btn btn-sm" id="dictAddBtn" style="background:#1a7a3a;color:#fff;padding:0 14px;font-size:13px;border-radius:8px;white-space:nowrap;">＋ 찾아서 추가</button>
+            </div>
+            <div id="dictListWrap"></div>
+            <div id="dictEmpty" style="font-size:13px;color:#8896b0;text-align:center;padding:8px 0;">모르는 단어의 뜻을 국어사전에서 찾아 추가해 보세요</div>
+          </div>
+
           <!-- 찬송/찬양 메모 -->
           <div style="margin-top:16px;background:linear-gradient(135deg,#f0f4ff,#e8f0fe);border-radius:12px;padding:14px;border:1.5px solid #c7d7f8;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -720,6 +733,7 @@ function saveDraft() {
     img:   capturedImg,
     hymns:  [...hymnList],
     verses: [...verseList],
+    dict:   [...dictList],
   };
   try {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -741,7 +755,8 @@ function loadDraft() {
   const hasContent = draft.memo || draft.img || draft.title
     || (draft.tags   && draft.tags.length)
     || (draft.hymns  && draft.hymns.length)
-    || (draft.verses && draft.verses.length);
+    || (draft.verses && draft.verses.length)
+    || (draft.dict   && draft.dict.length);
   if (!hasContent) return;
 
   editId = draft.editId || null;
@@ -757,6 +772,9 @@ function loadDraft() {
 
   verseList = [...(draft.verses||[])];
   renderVerseList();
+
+  dictList = [...(draft.dict||[])];
+  renderDictList();
 
   capturedImg = draft.img || null;
   if (capturedImg) { previewImg.src = capturedImg; showState('preview'); }
@@ -1019,7 +1037,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     }
   }
 
-  const newEntry = { id: Date.now().toString(), date, title, memo, tags: [...selTags], img: imgToSave, hymns: [...hymnList], verses: [...verseList], created: new Date().toISOString() };
+  const newEntry = { id: Date.now().toString(), date, title, memo, tags: [...selTags], img: imgToSave, hymns: [...hymnList], verses: [...verseList], dict: [...dictList], created: new Date().toISOString() };
   const wasEdit = !!editId;
 
   // 저장 실패 시 되돌릴 수 있도록 스냅샷 보관 (중복 저장 방지)
@@ -1090,6 +1108,8 @@ function resetForm() {
   renderHymnList();
   verseList = [];
   renderVerseList();
+  dictList = [];
+  renderDictList();
   selTags = [];
   renderTagRow();
   clearDraft();
@@ -1195,6 +1215,23 @@ function openModal(entry) {
     verseHtml.innerHTML = '';
   }
 
+  // 국어사전 표시
+  let dictHtml = document.getElementById('modalDict');
+  if (!dictHtml) {
+    dictHtml = document.createElement('div');
+    dictHtml.id = 'modalDict';
+    verseHtml.after(dictHtml);
+  }
+  const dictItems = entry.dict || [];
+  if (dictItems.length) {
+    dictHtml.innerHTML = `<div style="margin-top:14px;"><div style="font-size:12px;font-weight:700;color:var(--sub);letter-spacing:.5px;margin-bottom:8px;">📔 국어사전</div>`
+      + dictItems.map(d => `<div style="padding:10px 12px;background:#eef8f0;border:1.5px solid #c7e8c7;border-radius:9px;margin-bottom:6px;">
+          <a href="${d.link||'#'}" target="_blank" rel="noopener" style="font-size:13px;font-weight:700;color:#1a7a3a;text-decoration:underline;">${d.word} ↗</a>
+        </div>`).join('') + '</div>';
+  } else {
+    dictHtml.innerHTML = '';
+  }
+
   // 찬송 표시
   let hymnHtml = document.getElementById('modalHymns');
   if (!hymnHtml) {
@@ -1253,6 +1290,8 @@ document.getElementById('modalEditBtn').addEventListener('click', () => {
   renderHymnList();
   verseList = [...(currentEntry.verses||[])];
   renderVerseList();
+  dictList  = [...(currentEntry.dict||[])];
+  renderDictList();
 
   if (capturedImg) { previewImg.src = capturedImg; showState('preview'); }
   else              { showState('idle'); }
@@ -1428,6 +1467,57 @@ function renderVerseList() {
     });
   });
 }
+
+// ──────────────────────────────────────────────
+//  국어사전 (메모와 분리된 별도 목록)
+// ──────────────────────────────────────────────
+let dictList = [];     // 현재 폼의 국어사전 목록 [{word, link}]
+
+function naverDictLink(word) {
+  return `https://ko.dict.naver.com/#/search?query=${encodeURIComponent(word)}`;
+}
+
+function renderDictList() {
+  const wrap  = document.getElementById('dictListWrap');
+  const empty = document.getElementById('dictEmpty');
+  wrap.innerHTML = '';
+  empty.style.display = dictList.length ? 'none' : 'block';
+
+  dictList.forEach((d, i) => {
+    const div = document.createElement('div');
+    div.style.cssText = `display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
+      background:#fff;border:1.5px solid #c7e8c7;border-radius:10px;margin-bottom:8px;`;
+    div.innerHTML = `
+      <div style="flex:1;min-width:0;">
+        <a href="${d.link||'#'}" target="_blank" rel="noopener" style="font-size:13px;font-weight:700;color:#1a7a3a;text-decoration:underline;">${d.word} ↗</a>
+      </div>
+      <button data-idx="${i}" class="dict-del-btn" style="background:none;border:none;font-size:18px;color:#ccc;cursor:pointer;padding:0;line-height:1;">×</button>`;
+    wrap.appendChild(div);
+  });
+
+  wrap.querySelectorAll('.dict-del-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      dictList.splice(parseInt(btn.dataset.idx), 1);
+      renderDictList();
+      saveDraft();
+    });
+  });
+}
+
+document.getElementById('dictAddBtn').addEventListener('click', () => {
+  const input = document.getElementById('dictWordInput');
+  const word = input.value.trim();
+  if (!word) { toast('찾을 단어를 입력해 주세요.'); return; }
+  const link = naverDictLink(word);
+  dictList.push({ word, link });
+  renderDictList();
+  saveDraft();
+  input.value = '';
+  window.open(link, '_blank', 'noopener');
+});
+document.getElementById('dictWordInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('dictAddBtn').click();
+});
 
 // ──────────────────────────────────────────────
 //  찬송 / 찬양 메모
